@@ -26,20 +26,23 @@ export default async function SearchPage({
   const brandFacets = countBy(skus, (s) => s.brand);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
-      <form action="/search" method="get" className="relative mb-6">
-        <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" size={18} />
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
+      <form action="/search" method="get" className="relative mb-8">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-white/30"
+          size={18}
+        />
         <input
           name="q"
           defaultValue={q}
           autoFocus
           placeholder='Search "2025 Bowman Hobby" or "Prizm Football"'
-          className="w-full rounded-md border border-slate-300 bg-white py-3 pr-3 pl-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          className="w-full rounded-lg border border-white/10 bg-white/5 py-3.5 pr-3 pl-11 text-base text-white placeholder:text-white/30 focus:border-amber-400/50 focus:bg-white/10 focus:outline-none"
         />
       </form>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-        <aside className="space-y-6">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
+        <aside className="space-y-7">
           <Facet
             title="Sport"
             items={Object.entries(sportFacets)}
@@ -57,12 +60,15 @@ export default async function SearchPage({
         </aside>
 
         <div>
-          <div className="mb-4 flex items-end justify-between">
+          <div className="mb-6 flex items-end justify-between">
             <div>
-              <h1 className="text-xl font-bold text-slate-900">
+              <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+                {q ? "Search" : "Catalog"}
+              </div>
+              <h1 className="font-display mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
                 {q ? `Results for "${q}"` : "All sealed boxes"}
               </h1>
-              <p className="text-sm text-slate-500">
+              <p className="mt-1 text-sm text-white/50">
                 {results.length} {results.length === 1 ? "result" : "results"}
                 {sport ? ` · ${sport}` : ""}
                 {brand ? ` · ${brand}` : ""}
@@ -73,7 +79,7 @@ export default async function SearchPage({
               {(sport || brand) && (
                 <Link
                   href={`/search${q ? `?q=${encodeURIComponent(q)}` : ""}`}
-                  className="text-sm text-indigo-600 hover:underline"
+                  className="text-sm text-amber-300 transition hover:text-amber-200"
                 >
                   Clear filters
                 </Link>
@@ -82,14 +88,12 @@ export default async function SearchPage({
           </div>
 
           {results.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-12 text-center">
-              <div className="text-slate-400">
+            <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-12 text-center">
+              <div className="text-white/20">
                 <Search size={32} className="mx-auto" />
               </div>
-              <p className="mt-3 text-sm font-semibold text-slate-700">No matches</p>
-              <p className="mt-1 text-sm text-slate-500">
-                Try a different brand, sport, or year.
-              </p>
+              <p className="font-display mt-3 text-lg font-black text-white">No matches</p>
+              <p className="mt-1 text-sm text-white/50">Try a different brand, sport, or year.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -124,7 +128,9 @@ function Facet({
 }) {
   return (
     <div>
-      <h3 className="mb-2 text-xs font-semibold tracking-wider text-slate-400 uppercase">{title}</h3>
+      <h3 className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+        {title}
+      </h3>
       <ul className="space-y-1">
         {items.map(([value, count]) => {
           const params = new URLSearchParams();
@@ -135,14 +141,16 @@ function Facet({
             <li key={value}>
               <Link
                 href={`/search?${params.toString()}`}
-                className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition ${
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-sm transition ${
                   isActive
-                    ? "bg-slate-900 font-semibold text-white"
-                    : "text-slate-700 hover:bg-slate-100"
+                    ? "bg-amber-500/15 font-bold text-amber-300"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
                 }`}
               >
                 <span>{value}</span>
-                <span className={`text-xs ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                <span
+                  className={`text-xs ${isActive ? "text-amber-300/70" : "text-white/40"}`}
+                >
                   {count}
                 </span>
               </Link>

@@ -38,125 +38,93 @@ export default function AccountPage() {
   const activeListings = myListings.filter((l) => l.status === "Active").length;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6">
+    <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Account</h1>
-          <p className="text-sm text-slate-500">Your orders, bids, and listings</p>
+          <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+            Your account
+          </div>
+          <h1 className="font-display mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Dashboard
+          </h1>
+          <p className="text-sm text-white/50">Orders, bids, listings, and seller status</p>
         </div>
         <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1">
-          <Link
-            href="/account/messages"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <MessageCircle size={14} />
-            Messages
-          </Link>
-          <Link
-            href="/account/watchlist"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <Heart size={14} />
-            Watchlist
-          </Link>
-          <Link
-            href="/account/following"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <Users size={14} />
-            Following
-          </Link>
-          <Link
-            href="/account/disputes"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <AlertTriangle size={14} />
-            Disputes
-          </Link>
-          <Link
-            href="/account/analytics"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <BarChart3 size={14} />
-            Analytics
-          </Link>
-          <Link
-            href="/account/payouts"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <ArrowDownToLine size={14} />
-            Payouts
-          </Link>
-          <Link
-            href="/account/alerts"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <Bell size={14} />
-            Alerts
-          </Link>
-          <Link
-            href="/account/settings"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <Settings size={14} />
-            Settings
-          </Link>
+          <NavLink href="/account/messages" icon={<MessageCircle size={14} />} label="Messages" />
+          <NavLink href="/account/watchlist" icon={<Heart size={14} />} label="Watchlist" />
+          <NavLink href="/account/following" icon={<Users size={14} />} label="Following" />
+          <NavLink href="/account/disputes" icon={<AlertTriangle size={14} />} label="Disputes" />
+          <NavLink href="/account/analytics" icon={<BarChart3 size={14} />} label="Analytics" />
+          <NavLink href="/account/payouts" icon={<ArrowDownToLine size={14} />} label="Payouts" />
+          <NavLink href="/account/alerts" icon={<Bell size={14} />} label="Alerts" />
+          <NavLink href="/account/settings" icon={<Settings size={14} />} label="Settings" />
         </div>
       </div>
 
       <Link
         href="/account/payouts"
-        className="mb-6 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm transition hover:bg-emerald-50"
+        className="mb-8 flex items-center gap-3 rounded-xl border border-amber-700/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent px-4 py-3 text-sm transition hover:border-amber-700/50"
       >
-        <ArrowDownToLine className="text-emerald-700" size={16} />
-        <span className="flex-1 text-emerald-900">
-          <strong>Next payout {seller.nextPayoutDate}</strong> · {payoutHistory.length} weekly
-          payouts to {seller.bankName} •••{seller.bankLast4}
+        <ArrowDownToLine className="text-amber-400" size={16} />
+        <span className="flex-1 text-amber-100/90">
+          <strong className="text-amber-300">Next payout {seller.nextPayoutDate}</strong> ·{" "}
+          <span className="text-white/70">
+            {payoutHistory.length} weekly payouts to {seller.bankName} •••{seller.bankLast4}
+          </span>
         </span>
-        <span className="text-xs font-semibold text-emerald-700">View →</span>
+        <span className="text-xs font-semibold text-amber-300">View →</span>
       </Link>
 
-      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat icon={<Package size={16} />} label="Orders" value={String(orders.length)} sub="all time" />
-        <Stat icon={<DollarSign size={16} />} label="Spent" value={formatUSD(totalSpent)} sub="lifetime" />
-        <Stat icon={<TrendingUp size={16} />} label="Active bids" value={String(activeBids)} sub="open" />
-        <Stat icon={<Box size={16} />} label="Listings" value={String(activeListings)} sub="active" />
+      <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat icon={<Package size={14} />} label="Orders" value={String(orders.length)} sub="all time" />
+        <Stat
+          icon={<DollarSign size={14} />}
+          label="Spent"
+          value={formatUSD(totalSpent)}
+          sub="lifetime"
+          accent
+        />
+        <Stat icon={<TrendingUp size={14} />} label="Active bids" value={String(activeBids)} sub="open" />
+        <Stat icon={<Box size={14} />} label="Listings" value={String(activeListings)} sub="active" />
       </div>
 
-      <Section title="Recent orders" subtitle="Includes escrow status">
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <Section eyebrow="Activity" title="Recent orders" subtitle="Includes escrow status">
+        <div className="overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+            <thead className="bg-white/[0.03] text-left text-[10px] font-semibold tracking-[0.15em] text-white/50 uppercase">
               <tr>
-                <th className="px-4 py-2.5">Order</th>
-                <th className="px-4 py-2.5">Product</th>
-                <th className="px-4 py-2.5">Price</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Date</th>
+                <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Price</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/5">
               {orders.map((o) => {
                 const sku = skus.find((s) => s.id === o.skuId)!;
                 return (
-                  <tr key={o.id} className="hover:bg-slate-50">
+                  <tr key={o.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-4 py-3 font-mono text-xs">
-                      <Link href={`/account/orders/${o.id}`} className="text-indigo-600 hover:underline">
+                      <Link href={`/account/orders/${o.id}`} className="text-amber-300 hover:underline">
                         {o.id}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/account/orders/${o.id}`} className="text-sm font-semibold text-slate-900 hover:text-indigo-600">
+                      <Link
+                        href={`/account/orders/${o.id}`}
+                        className="text-sm font-semibold text-white transition hover:text-amber-300"
+                      >
                         {formatSkuTitle(sku)}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{formatUSDFull(o.price)}</td>
+                    <td className="px-4 py-3 font-display font-black text-amber-400">
+                      {formatUSDFull(o.price)}
+                    </td>
                     <td className="px-4 py-3">
                       <OrderBadge status={o.status} />
                     </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {formatShort(o.date)}
-                    </td>
+                    <td className="px-4 py-3 text-white/50">{formatShort(o.date)}</td>
                   </tr>
                 );
               })}
@@ -165,38 +133,43 @@ export default function AccountPage() {
         </div>
       </Section>
 
-      <Section title="My bids" subtitle="Open offers waiting for a seller">
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <Section eyebrow="Open" title="My bids" subtitle="Offers waiting for a seller">
+        <div className="overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+            <thead className="bg-white/[0.03] text-left text-[10px] font-semibold tracking-[0.15em] text-white/50 uppercase">
               <tr>
-                <th className="px-4 py-2.5">Bid</th>
-                <th className="px-4 py-2.5">Product</th>
-                <th className="px-4 py-2.5">Bid price</th>
-                <th className="px-4 py-2.5">Last sale</th>
-                <th className="px-4 py-2.5">Expires</th>
-                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-3">Bid</th>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Bid price</th>
+                <th className="px-4 py-3">Last sale</th>
+                <th className="px-4 py-3">Expires</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/5">
               {myBids.map((b) => {
                 const sku = skus.find((s) => s.id === b.skuId)!;
                 const last = lastSale(b.skuId);
                 return (
-                  <tr key={b.id} className="hover:bg-slate-50">
+                  <tr key={b.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-4 py-3 font-mono text-xs">
-                      <Link href={`/account/bids/${b.id}`} className="text-indigo-600 hover:underline">
+                      <Link href={`/account/bids/${b.id}`} className="text-amber-300 hover:underline">
                         {b.id}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/account/bids/${b.id}`} className="text-sm font-semibold text-slate-900 hover:text-indigo-600">
+                      <Link
+                        href={`/account/bids/${b.id}`}
+                        className="text-sm font-semibold text-white transition hover:text-amber-300"
+                      >
                         {formatSkuTitle(sku)}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{formatUSDFull(b.price)}</td>
-                    <td className="px-4 py-3 text-slate-500">{last ? formatUSDFull(last) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-500">{b.expires}</td>
+                    <td className="px-4 py-3 font-display font-black text-white">
+                      {formatUSDFull(b.price)}
+                    </td>
+                    <td className="px-4 py-3 text-white/50">{last ? formatUSDFull(last) : "—"}</td>
+                    <td className="px-4 py-3 text-white/50">{b.expires}</td>
                     <td className="px-4 py-3">
                       <BidBadge status={b.status} />
                     </td>
@@ -208,39 +181,42 @@ export default function AccountPage() {
         </div>
       </Section>
 
-      <Section title="My listings" subtitle="Boxes you've put on the market">
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <Section eyebrow="Selling" title="My listings" subtitle="Boxes you've put on the market">
+        <div className="overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wider text-slate-500 uppercase">
+            <thead className="bg-white/[0.03] text-left text-[10px] font-semibold tracking-[0.15em] text-white/50 uppercase">
               <tr>
-                <th className="px-4 py-2.5">Listing</th>
-                <th className="px-4 py-2.5">Product</th>
-                <th className="px-4 py-2.5">Ask</th>
-                <th className="px-4 py-2.5">Qty</th>
-                <th className="px-4 py-2.5">Listed</th>
-                <th className="px-4 py-2.5">Status</th>
+                <th className="px-4 py-3">Listing</th>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Ask</th>
+                <th className="px-4 py-3">Qty</th>
+                <th className="px-4 py-3">Listed</th>
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/5">
               {myListings.map((l) => {
                 const sku = skus.find((s) => s.id === l.skuId)!;
                 return (
-                  <tr key={l.id} className="hover:bg-slate-50">
+                  <tr key={l.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-4 py-3 font-mono text-xs">
-                      <Link href={`/account/listings/${l.id}`} className="text-indigo-600 hover:underline">
+                      <Link href={`/account/listings/${l.id}`} className="text-amber-300 hover:underline">
                         {l.id}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/account/listings/${l.id}`} className="text-sm font-semibold text-slate-900 hover:text-indigo-600">
+                      <Link
+                        href={`/account/listings/${l.id}`}
+                        className="text-sm font-semibold text-white transition hover:text-amber-300"
+                      >
                         {formatSkuTitle(sku)}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{formatUSDFull(l.price)}</td>
-                    <td className="px-4 py-3 text-slate-500">{l.qty}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {formatShort(l.listed)}
+                    <td className="px-4 py-3 font-display font-black text-amber-400">
+                      {formatUSDFull(l.price)}
                     </td>
+                    <td className="px-4 py-3 text-white/50">{l.qty}</td>
+                    <td className="px-4 py-3 text-white/50">{formatShort(l.listed)}</td>
                     <td className="px-4 py-3">
                       <ListingBadge status={l.status} />
                     </td>
@@ -255,43 +231,66 @@ export default function AccountPage() {
   );
 }
 
+function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-semibold text-white/80 transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300"
+    >
+      {icon}
+      {label}
+    </Link>
+  );
+}
+
 function Stat({
   icon,
   label,
   value,
   sub,
+  accent,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   sub: string;
+  accent?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-slate-500 uppercase">
-        <span className="text-slate-400">{icon}</span>
+    <div className="rounded-xl border border-white/10 bg-[#101012] p-4">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.15em] text-white/50 uppercase">
+        <span className="text-white/30">{icon}</span>
         {label}
       </div>
-      <div className="mt-1 text-2xl font-bold text-slate-900">{value}</div>
-      <div className="text-xs text-slate-400">{sub}</div>
+      <div
+        className={`font-display mt-1.5 text-2xl font-black tracking-tight ${accent ? "text-amber-400" : "text-white"}`}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-white/40">{sub}</div>
     </div>
   );
 }
 
 function Section({
+  eyebrow,
   title,
   subtitle,
   children,
 }: {
+  eyebrow: string;
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="mb-8">
-      <div className="mb-3">
-        <h2 className="text-base font-bold text-slate-900">{title}</h2>
-        <p className="text-xs text-slate-500">{subtitle}</p>
+    <section className="mb-10">
+      <div className="mb-4">
+        <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+          {eyebrow}
+        </div>
+        <h2 className="font-display mt-1 text-2xl font-black tracking-tight text-white">{title}</h2>
+        <p className="text-xs text-white/50">{subtitle}</p>
       </div>
       {children}
     </section>
@@ -300,13 +299,15 @@ function Section({
 
 function OrderBadge({ status }: { status: OrderStatus }) {
   const config = {
-    Escrow: { bg: "bg-amber-50", text: "text-amber-700", icon: <ShieldCheck size={11} /> },
-    Shipped: { bg: "bg-sky-50", text: "text-sky-700", icon: <Package size={11} /> },
-    Delivered: { bg: "bg-emerald-50", text: "text-emerald-700", icon: <Package size={11} /> },
-    Completed: { bg: "bg-slate-100", text: "text-slate-600", icon: <Clock size={11} /> },
+    Escrow: { bg: "bg-amber-500/15 border-amber-700/40", text: "text-amber-300", icon: <ShieldCheck size={11} /> },
+    Shipped: { bg: "bg-sky-500/15 border-sky-700/40", text: "text-sky-300", icon: <Package size={11} /> },
+    Delivered: { bg: "bg-emerald-500/15 border-emerald-700/40", text: "text-emerald-300", icon: <Package size={11} /> },
+    Completed: { bg: "bg-white/5 border-white/10", text: "text-white/70", icon: <Clock size={11} /> },
   }[status];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${config.bg} ${config.text}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold ${config.bg} ${config.text}`}
+    >
       {config.icon}
       {status}
     </span>
@@ -315,13 +316,13 @@ function OrderBadge({ status }: { status: OrderStatus }) {
 
 function BidBadge({ status }: { status: BidStatus }) {
   const config = {
-    Active: "bg-indigo-50 text-indigo-700",
-    Won: "bg-emerald-50 text-emerald-700",
-    Outbid: "bg-rose-50 text-rose-700",
-    Expired: "bg-slate-100 text-slate-600",
+    Active: "border-amber-700/40 bg-amber-500/15 text-amber-300",
+    Won: "border-emerald-700/40 bg-emerald-500/15 text-emerald-300",
+    Outbid: "border-rose-700/40 bg-rose-500/15 text-rose-300",
+    Expired: "border-white/10 bg-white/5 text-white/60",
   }[status];
   return (
-    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${config}`}>
+    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${config}`}>
       {status}
     </span>
   );
@@ -329,12 +330,12 @@ function BidBadge({ status }: { status: BidStatus }) {
 
 function ListingBadge({ status }: { status: ListingStatus }) {
   const config = {
-    Active: "bg-emerald-50 text-emerald-700",
-    Sold: "bg-indigo-50 text-indigo-700",
-    Expired: "bg-slate-100 text-slate-600",
+    Active: "border-emerald-700/40 bg-emerald-500/15 text-emerald-300",
+    Sold: "border-amber-700/40 bg-amber-500/15 text-amber-300",
+    Expired: "border-white/10 bg-white/5 text-white/60",
   }[status];
   return (
-    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${config}`}>
+    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${config}`}>
       {status}
     </span>
   );

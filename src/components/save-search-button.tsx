@@ -27,8 +27,8 @@ export function SaveSearchButton({
       }}
       className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
         saved
-          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+          : "border-white/15 bg-white/5 text-white/80 hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300"
       }`}
     >
       {saved ? (
