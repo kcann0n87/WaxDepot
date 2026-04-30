@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, CreditCard, Lock, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, CreditCard, Loader2, Lock, X } from "lucide-react";
 import { Sku } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
+import { createBid } from "@/app/actions/bids";
 
 import { CURRENT_USER_TIER, TIER_FEE } from "@/lib/fees";
 
@@ -23,18 +25,45 @@ export function BuyBidActions({
   bid: number | null;
   last: number | null;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("closed");
   const [bidAmount, setBidAmount] = useState<string>(
     bid !== null ? String(bid + 5) : ask !== null ? String(Math.max(ask - 25, 1)) : "0",
   );
   const [bidDays, setBidDays] = useState<string>("7");
+  const [bidError, setBidError] = useState<string | null>(null);
+  const [bidPending, startBidTransition] = useTransition();
   const [orderId] = useState(() => `WM-${Math.floor(Math.random() * 900000 + 100000)}`);
 
-  const close = () => setMode("closed");
+  const close = () => {
+    setMode("closed");
+    setBidError(null);
+  };
   const bidNum = parseFloat(bidAmount) || 0;
   const buyTax = ask ? Math.round(ask * 0.07 * 100) / 100 : 0;
   const buyShipping = 0;
   const buyTotal = (ask || 0) + buyTax + buyShipping;
+
+  const handleSubmitBid = () => {
+    setBidError(null);
+    const formData = new FormData();
+    formData.set("skuId", sku.id);
+    formData.set("price", String(bidNum));
+    formData.set("days", bidDays);
+    startBidTransition(async () => {
+      const result = await createBid(formData);
+      if (result.needsAuth) {
+        const next = `/product/${sku.slug}`;
+        router.push(`/signup?next=${encodeURIComponent(next)}`);
+        return;
+      }
+      if (result.error) {
+        setBidError(result.error);
+        return;
+      }
+      setMode("bid-confirmed");
+    });
+  };
 
   return (
     <>
@@ -109,13 +138,9 @@ export function BuyBidActions({
                 currentHighest={bid}
                 lowestAsk={ask}
                 onClose={close}
-                onConfirm={() => {
-                  if (bidNum >= (ask ?? Infinity)) {
-                    setMode("buy-confirmed");
-                  } else {
-                    setMode("bid-confirmed");
-                  }
-                }}
+                onConfirm={handleSubmitBid}
+                pending={bidPending}
+                error={bidError}
               />
             )}
             {mode === "buy-confirmed" && (
@@ -331,6 +356,8 @@ function BidModal({
   lowestAsk,
   onClose,
   onConfirm,
+  pending,
+  error,
 }: {
   sku: Sku;
   bidAmount: string;
@@ -341,6 +368,8 @@ function BidModal({
   lowestAsk: number | null;
   onClose: () => void;
   onConfirm: () => void;
+  pending: boolean;
+  error: string | null;
 }) {
   const bidNum = parseFloat(bidAmount) || 0;
   const meetsAsk = lowestAsk !== null && bidNum >= lowestAsk;
@@ -431,24 +460,33 @@ function BidModal({
           </div>
         </div>
 
+        {error && (
+          <div className="mt-4 rounded-md border border-rose-700/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
+
         <div className="mt-5 flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 rounded-md border border-white/15 bg-[#101012] px-4 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/[0.02]"
+            disabled={pending}
+            className="flex-1 rounded-md border border-white/15 bg-[#101012] px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.02] disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            disabled={bidNum <= 0}
+            disabled={bidNum <= 0 || pending}
             onClick={onConfirm}
-            className="flex-1 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {meetsAsk ? `Buy for ${formatUSD(lowestAsk!)}` : `Place bid — ${formatUSD(bidNum)}`}
+            {pending ? <Loader2 size={14} className="animate-spin" /> : null}
+            Place bid — {formatUSD(bidNum)}
           </button>
         </div>
 
         <div className="mt-3 text-[11px] text-white/40">
           Flat {(FEE_RATE * 100).toFixed(0)}% seller fee — no buyer fees, no separate processing.
+          {meetsAsk && " Use Buy Now if you want to take the lowest ask immediately."}
         </div>
         {/* keep referenced so the var isn't unused */}
         <div className="hidden">{fee}</div>
