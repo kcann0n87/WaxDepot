@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { SaveSearchButton } from "@/components/save-search-button";
-import { skus, lowestAsk, lastSale } from "@/lib/data";
+import { getCatalogWithPricing } from "@/lib/db";
 
 export default async function SearchPage({
   searchParams,
@@ -12,7 +12,9 @@ export default async function SearchPage({
   const { q = "", sport, brand } = await searchParams;
   const query = q.trim().toLowerCase();
 
-  let results = skus;
+  const catalog = await getCatalogWithPricing();
+
+  let results = catalog;
   if (query) {
     results = results.filter((s) => {
       const haystack = `${s.year} ${s.brand} ${s.set} ${s.product} ${s.sport}`.toLowerCase();
@@ -22,8 +24,10 @@ export default async function SearchPage({
   if (sport) results = results.filter((s) => s.sport === sport);
   if (brand) results = results.filter((s) => s.brand === brand);
 
-  const sportFacets = countBy(skus, (s) => s.sport);
-  const brandFacets = countBy(skus, (s) => s.brand);
+  // Facet counts come from the FULL catalog so users can see what's available
+  // even with a partial query. They tighten when query terms also apply.
+  const sportFacets = countBy(catalog, (s) => s.sport);
+  const brandFacets = countBy(catalog, (s) => s.brand);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
@@ -101,8 +105,8 @@ export default async function SearchPage({
                 <ProductCard
                   key={s.id}
                   sku={s}
-                  lowestAsk={lowestAsk(s.id)}
-                  lastSale={lastSale(s.id)}
+                  lowestAsk={s.lowestAsk}
+                  lastSale={s.lastSale}
                 />
               ))}
             </div>
@@ -148,9 +152,7 @@ function Facet({
                 }`}
               >
                 <span>{value}</span>
-                <span
-                  className={`text-xs ${isActive ? "text-amber-300/70" : "text-white/40"}`}
-                >
+                <span className={`text-xs ${isActive ? "text-amber-300/70" : "text-white/40"}`}>
                   {count}
                 </span>
               </Link>
