@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { stripe } from "@/lib/stripe";
+import { TIER_FEE, type SellerTier } from "@/lib/fees";
 
 export type ActionResult = { ok?: boolean; error?: string; orderId?: string };
 
@@ -80,6 +82,7 @@ export async function acceptBid(formData: FormData): Promise<ActionResult> {
       total_cents: totalCents,
       card_last4: null,
       status: "Charged" as const,
+      payment_status: "pending",
       // Placeholder ship-to until Stripe Checkout captures real address.
       ship_to_name: buyerProfile.data?.display_name ?? "Buyer",
       ship_to_addr1: "ADDRESS_PENDING",
@@ -120,15 +123,16 @@ export async function acceptBid(formData: FormData): Promise<ActionResult> {
         .eq("id", listing.id);
     }
 
-    // Notify the buyer.
+    // Notify the buyer with a payment CTA — they need to complete checkout
+    // for the order to go live.
     const skuRel = Array.isArray(bid.sku) ? bid.sku[0] : bid.sku;
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
       await supabase.from("notifications").insert({
         user_id: bid.buyer_id,
         type: "bid-accepted",
-        title: "Your bid was accepted",
-        body: `${sellerProfile.data?.display_name ?? "The seller"} accepted your $${(bid.price_cents / 100).toFixed(0)} bid on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}. Order ${orderId} is open.`,
+        title: "Bid accepted — complete payment",
+        body: `${sellerProfile.data?.display_name ?? "The seller"} accepted your $${(bid.price_cents / 100).toFixed(0)} bid on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}. Pay now to lock the order.`,
         href: `/account/orders/${orderId}`,
       });
     }
@@ -275,7 +279,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     const { data: order } = await supabase
       .from("orders")
       .select(
-        "id, buyer_id, seller_id, status, total_cents, sku:skus!orders_sku_id_fkey(year, brand, product)",
+        "id, buyer_id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_payment_intent_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -294,6 +298,46 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
       })
       .eq("id", orderId);
     if (error) throw error;
+
+    // Phase 3: trigger Stripe Transfer to the seller's connected account.
+    // We pull the seller's stripe_account_id and apply the seller's tier fee
+    // before transferring. The transfer is scoped to the original charge so
+    // platform balance accounting stays clean.
+    if (
+      stripe &&
+      order.payment_status === "paid" &&
+      order.stripe_charge_id
+    ) {
+      try {
+        const { data: seller } = await supabase
+          .from("profiles")
+          .select("stripe_account_id, stripe_charges_enabled")
+          .eq("id", order.seller_id)
+          .maybeSingle();
+        if (seller?.stripe_account_id && seller.stripe_charges_enabled) {
+          // Default to Starter tier fee. When per-seller-tier is wired this
+          // becomes a column lookup on the seller's profile.
+          const tier: SellerTier = "Starter";
+          const feeCents = Math.round(order.price_cents * TIER_FEE[tier]);
+          const transferAmount = order.price_cents - feeCents;
+          if (transferAmount > 0) {
+            await stripe.transfers.create({
+              amount: transferAmount,
+              currency: "usd",
+              destination: seller.stripe_account_id,
+              source_transaction: order.stripe_charge_id,
+              metadata: { waxdepot_order_id: order.id },
+              description: `Payout for order ${order.id} (${tier} tier · ${(TIER_FEE[tier] * 100).toFixed(0)}% fee)`,
+            });
+          }
+        }
+      } catch (e) {
+        // Non-fatal: order is still Released. Webhook transfer.* events will
+        // catch up if/when the transfer eventually goes through, or admin
+        // can reconcile manually.
+        console.error("confirmDelivery transfer failed:", e);
+      }
+    }
 
     const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
     const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;

@@ -5,17 +5,16 @@ import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Stripe webhook handler. Listens for events Stripe pushes after charges,
- * Connect-account changes, transfers, and refunds.
+ * Stripe webhook handler. Listens for events Stripe pushes after Checkout
+ * completions, Connect-account changes, transfers, and refunds.
  *
- * To register this endpoint:
- *   Stripe Dashboard → Developers → Webhooks → Add endpoint
- *   URL: https://waxdepot.io/api/stripe/webhook
- *   Events: account.updated, payment_intent.succeeded,
- *           payment_intent.payment_failed, charge.refunded,
- *           transfer.created, transfer.reversed
- *   Then copy the "Signing secret" (whsec_...) into the
- *   STRIPE_WEBHOOK_SECRET env var on Vercel.
+ * Two endpoints typically register against this URL:
+ *   1. "Connected and v2 accounts" → account.updated (seller onboarding)
+ *   2. "Your account" → checkout.session.completed, payment_intent.*,
+ *      charge.refunded, transfer.*
+ *   Both share the same signing secret (STRIPE_WEBHOOK_SECRET) by
+ *   re-using the same endpoint, OR you can register two endpoints in
+ *   Stripe and rotate to the latest secret of either.
  */
 export const dynamic = "force-dynamic";
 
@@ -70,19 +69,68 @@ async function handleEvent(event: Stripe.Event) {
       break;
     }
 
-    case "payment_intent.succeeded": {
-      const pi = event.data.object as Stripe.PaymentIntent;
-      const orderId = pi.metadata?.waxdepot_order_id;
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const orderId = session.metadata?.waxdepot_order_id;
       if (!orderId) break;
-      await supabase
-        .from("orders")
-        .update({
-          status: "InEscrow",
-          payment_status: "paid",
-          stripe_charge_id: typeof pi.latest_charge === "string" ? pi.latest_charge : null,
-        })
-        .eq("id", orderId);
-      // Notify seller that payment is in escrow and they can ship.
+
+      const piId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
+
+      // Look up the latest charge id from the PI for use in Phase 3 transfer.
+      let chargeId: string | null = null;
+      if (piId && stripe) {
+        try {
+          const pi = await stripe.paymentIntents.retrieve(piId);
+          chargeId =
+            typeof pi.latest_charge === "string"
+              ? pi.latest_charge
+              : pi.latest_charge?.id ?? null;
+        } catch (e) {
+          console.error("PI retrieve failed in webhook:", e);
+        }
+      }
+
+      // Capture shipping address from Checkout's collected_information.
+      // The shape moved between versions of the Stripe API; check both.
+      type ShippingShape = {
+        name?: string | null;
+        address?: {
+          line1?: string | null;
+          line2?: string | null;
+          city?: string | null;
+          state?: string | null;
+          postal_code?: string | null;
+          country?: string | null;
+        } | null;
+      } | null | undefined;
+      const sessionAny = session as unknown as {
+        collected_information?: { shipping_details?: ShippingShape };
+        shipping_details?: ShippingShape;
+      };
+      const shipping: ShippingShape =
+        sessionAny.collected_information?.shipping_details ?? sessionAny.shipping_details;
+
+      const update: Record<string, unknown> = {
+        status: "InEscrow",
+        payment_status: "paid",
+      };
+      if (piId) update.stripe_payment_intent_id = piId;
+      if (chargeId) update.stripe_charge_id = chargeId;
+      if (shipping?.address) {
+        const a = shipping.address;
+        update.ship_to_name = shipping.name ?? "Buyer";
+        update.ship_to_addr1 = [a.line1, a.line2].filter(Boolean).join(", ") || "—";
+        update.ship_to_city = a.city ?? "—";
+        update.ship_to_state = a.state ?? "—";
+        update.ship_to_zip = a.postal_code ?? "—";
+      }
+
+      await supabase.from("orders").update(update).eq("id", orderId);
+
+      // Notify the seller — they can ship now.
       const { data: order } = await supabase
         .from("orders")
         .select(
@@ -97,11 +145,29 @@ async function handleEvent(event: Stripe.Event) {
           type: "bid-accepted",
           title: "Payment received — ship the order",
           body: sku
-            ? `Buyer paid for ${sku.year} ${sku.brand} ${sku.product}. Funds are in escrow.`
+            ? `Buyer paid for ${sku.year} ${sku.brand} ${sku.product}. Funds in escrow until they confirm delivery.`
             : `Buyer paid for order ${orderId}. Funds are in escrow.`,
           href: `/account/orders/${orderId}`,
         });
       }
+      break;
+    }
+
+    case "payment_intent.succeeded": {
+      // Fallback path for raw PaymentIntents not routed through Checkout.
+      // Phase 2 sends everything through Checkout, so this rarely fires —
+      // kept for safety + future direct-PI flows.
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const orderId = pi.metadata?.waxdepot_order_id;
+      if (!orderId) break;
+      await supabase
+        .from("orders")
+        .update({
+          status: "InEscrow",
+          payment_status: "paid",
+          stripe_charge_id: typeof pi.latest_charge === "string" ? pi.latest_charge : null,
+        })
+        .eq("id", orderId);
       break;
     }
 

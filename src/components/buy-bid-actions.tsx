@@ -7,6 +7,7 @@ import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import { Sku } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
 import { createBid } from "@/app/actions/bids";
+import { createBuyNowCheckout } from "@/app/actions/stripe-checkout";
 
 import { CURRENT_USER_TIER, TIER_FEE } from "@/lib/fees";
 
@@ -33,8 +34,6 @@ export function BuyBidActions({
   const [bidDays, setBidDays] = useState<string>("7");
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidPending, startBidTransition] = useTransition();
-  const [orderId] = useState(() => `WM-${Math.floor(Math.random() * 900000 + 100000)}`);
-
   const close = () => {
     setMode("closed");
     setBidError(null);
@@ -63,11 +62,28 @@ export function BuyBidActions({
   };
 
   const handleSubmitBid = () => submitBid(bidNum, parseInt(bidDays, 10), () => setMode("bid-confirmed"));
+
   const handleBuyAtAsk = () => {
     if (ask === null) return;
-    // "Buy Now" = bid at the lowest ask, expires in 1 day. When the seller
-    // accepts (or auto-match runs once Stripe is wired), an order is created.
-    submitBid(ask, 1, () => setMode("buy-confirmed"));
+    setBidError(null);
+    const formData = new FormData();
+    formData.set("skuId", sku.id);
+    startBidTransition(async () => {
+      const result = await createBuyNowCheckout(formData);
+      if (result.needsAuth) {
+        router.push(`/signup?next=${encodeURIComponent(`/product/${sku.slug}`)}`);
+        return;
+      }
+      if (result.error) {
+        setBidError(result.error);
+        return;
+      }
+      if (result.checkoutUrl) {
+        // Hand off to Stripe's hosted checkout. Webhook fires
+        // checkout.session.completed when buyer pays → order moves to InEscrow.
+        window.location.href = result.checkoutUrl;
+      }
+    });
   };
 
   return (
@@ -132,6 +148,18 @@ export function BuyBidActions({
                 error={bidError}
               />
             )}
+            {mode === "buy-confirmed" && (
+              <ConfirmedModal
+                title="Redirecting to checkout..."
+                lines={[
+                  formatSkuTitle(sku),
+                  "Hold on while we connect to Stripe.",
+                ]}
+                ctaLabel="View order"
+                ctaHref="/account"
+                onClose={close}
+              />
+            )}
             {mode === "bid" && (
               <BidModal
                 sku={sku}
@@ -145,19 +173,6 @@ export function BuyBidActions({
                 onConfirm={handleSubmitBid}
                 pending={bidPending}
                 error={bidError}
-              />
-            )}
-            {mode === "buy-confirmed" && (
-              <ConfirmedModal
-                title="Bid at ask placed"
-                lines={[
-                  `${formatSkuTitle(sku)}`,
-                  `${formatUSD(ask ?? 0)} · expires in 1 day`,
-                  `Locks the lowest ask. The order completes when the seller accepts (payment processing rolling out — for now no card is charged).`,
-                ]}
-                ctaLabel="View my bids"
-                ctaHref="/account"
-                onClose={close}
               />
             )}
             {mode === "bid-confirmed" && (

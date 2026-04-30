@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Circle,
   Clock,
@@ -13,6 +14,7 @@ import {
   Truck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { payOrderAndRedirect } from "@/app/actions/stripe-checkout";
 import { CancelOrderButton } from "./cancel-order";
 import { ConfirmDeliveryButton } from "./confirm-delivery";
 import { LeaveReview } from "./leave-review";
@@ -54,6 +56,10 @@ type OrderRow = {
   released_at: string | null;
   canceled_at: string | null;
   cancel_reason: string | null;
+  payment_status: string | null;
+  stripe_payment_intent_id: string | null;
+  stripe_charge_id: string | null;
+  stripe_transfer_id: string | null;
   sku:
     | {
         slug: string;
@@ -211,15 +217,58 @@ export default async function OrderDetailPage({
         <StatusBadge status={order.status} isBuyer={isBuyer} />
       </div>
 
-      {addressPending && !isCanceled && (
+      {/* Buyer hasn't paid yet — show Pay Now CTA */}
+      {isBuyer && order.payment_status === "pending" && !isCanceled && (
+        <div className="mb-6 rounded-xl border border-amber-700/40 bg-gradient-to-br from-amber-500/15 to-transparent p-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-300">
+              <AlertTriangle size={16} />
+            </div>
+            <div className="flex-1">
+              <div className="font-display text-base font-bold text-white">
+                Complete payment to lock this order
+              </div>
+              <p className="mt-0.5 text-sm text-amber-100/80">
+                Your order is reserved but the seller can&apos;t ship until you pay. Stripe Checkout
+                collects payment + shipping address — funds go into escrow until you confirm
+                delivery.
+              </p>
+              <form action={payOrderAndRedirect} className="mt-3">
+                <input type="hidden" name="orderId" value={order.id} />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
+                >
+                  Pay {formatUSDFull(total)}
+                  <ArrowRight size={14} />
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seller-side view: buyer hasn't paid yet */}
+      {isSeller && order.payment_status === "pending" && !isCanceled && (
         <div className="mb-6 rounded-lg border border-amber-700/40 bg-amber-500/10 px-4 py-3 text-sm">
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
             <div className="text-amber-100">
-              <strong className="text-amber-50">Shipping address pending.</strong>{" "}
-              {isBuyer
-                ? "Once payment processing goes live (Stripe Checkout, rolling out next), you'll be prompted to confirm your shipping address — the seller can't ship until then."
-                : "The buyer hasn't confirmed their shipping address yet. They'll do this once payment processing goes live (Stripe Checkout, rolling out next)."}
+              <strong className="text-amber-50">Awaiting buyer payment.</strong> Buyer needs to
+              complete checkout. You&apos;ll get a notification + can ship as soon as payment is
+              confirmed.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addressPending && order.payment_status === "paid" && !isCanceled && (
+        <div className="mb-6 rounded-lg border border-amber-700/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
+            <div className="text-amber-100">
+              <strong className="text-amber-50">Shipping address syncing.</strong> Stripe is
+              still relaying the address from checkout. Refresh in a moment.
             </div>
           </div>
         </div>
