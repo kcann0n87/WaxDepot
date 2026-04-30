@@ -7,6 +7,7 @@ import {
   MessageCircle,
   Package,
   ShieldCheck,
+  Star,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProductImage } from "@/components/product-image";
@@ -72,7 +73,7 @@ export default async function SellerStorefrontPage({
     .maybeSingle();
   if (!profile) notFound();
 
-  const [{ data: listings }, salesCountRes] = await Promise.all([
+  const [{ data: listings }, salesCountRes, { data: reviewRows }] = await Promise.all([
     supabase
       .from("listings")
       .select(
@@ -86,9 +87,55 @@ export default async function SellerStorefrontPage({
       .select("id", { count: "exact", head: true })
       .eq("seller_id", profile.id)
       .in("status", ["Delivered", "Released", "Completed"]),
+    supabase
+      .from("reviews")
+      .select(
+        "id, stars, verdict, text, seller_reply, seller_reply_at, created_at, reviewer:profiles!reviews_reviewer_id_fkey(username, display_name), sku:skus!reviews_sku_id_fkey(slug, year, brand, product)",
+      )
+      .eq("seller_id", profile.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const totalSales = salesCountRes.count ?? 0;
+
+  type RawReview = {
+    id: string;
+    stars: number;
+    verdict: "positive" | "neutral" | "negative";
+    text: string | null;
+    seller_reply: string | null;
+    seller_reply_at: string | null;
+    created_at: string;
+    reviewer: { username: string; display_name: string } | { username: string; display_name: string }[] | null;
+    sku: { slug: string; year: number; brand: string; product: string } | { slug: string; year: number; brand: string; product: string }[] | null;
+  };
+
+  const reviews = ((reviewRows ?? []) as unknown as RawReview[]).map((r) => {
+    const reviewer = Array.isArray(r.reviewer) ? r.reviewer[0] : r.reviewer;
+    const skuMeta = Array.isArray(r.sku) ? r.sku[0] : r.sku;
+    return {
+      id: r.id,
+      stars: r.stars,
+      verdict: r.verdict,
+      text: r.text,
+      sellerReply: r.seller_reply,
+      sellerReplyAt: r.seller_reply_at,
+      createdAt: r.created_at,
+      reviewerUsername: reviewer?.username ?? "anonymous",
+      reviewerDisplayName: reviewer?.display_name ?? "Anonymous",
+      skuSlug: skuMeta?.slug,
+      skuTitle: skuMeta ? `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}` : null,
+    };
+  });
+
+  const reviewCount = reviews.length;
+  const avgStars =
+    reviewCount > 0 ? reviews.reduce((sum, r) => sum + r.stars, 0) / reviewCount : null;
+  const positivePct =
+    reviewCount > 0
+      ? (reviews.filter((r) => r.verdict === "positive").length / reviewCount) * 100
+      : null;
 
   const sellerListings = ((listings ?? []) as unknown as ListingRow[])
     .map((row) => {
@@ -162,12 +209,21 @@ export default async function SellerStorefrontPage({
             <p className="mt-4 max-w-3xl text-sm text-white/60">{profile.bio}</p>
           )}
 
-          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <Stat icon={<Package size={14} />} label="Total sales" value={totalSales.toLocaleString()} />
             <Stat
               icon={<Package size={14} />}
               label="Active listings"
               value={String(sellerListings.length)}
+            />
+            <Stat
+              icon={<Star size={14} />}
+              label="Rating"
+              value={
+                avgStars !== null
+                  ? `${avgStars.toFixed(1)}★ · ${positivePct?.toFixed(0)}%`
+                  : "—"
+              }
             />
             <Stat
               icon={<ShieldCheck size={14} />}
@@ -234,13 +290,67 @@ export default async function SellerStorefrontPage({
         <div className="mb-3">
           <h2 className="font-display text-lg font-black text-white">Recent feedback</h2>
           <p className="text-sm text-white/50">
-            Reviews show up after buyers complete orders.
+            {reviewCount === 0
+              ? "Reviews show up after buyers confirm orders."
+              : `${reviewCount} buyer ${reviewCount === 1 ? "review" : "reviews"}`}
           </p>
         </div>
 
-        <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
-          {profile.display_name} doesn&apos;t have reviews yet.
-        </div>
+        {reviews.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
+            {profile.display_name} doesn&apos;t have reviews yet.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {reviews.map((r) => (
+              <li key={r.id} className="rounded-xl border border-white/10 bg-[#101012] p-5">
+                <div className="flex items-start gap-3">
+                  <Avatar name={r.reviewerDisplayName} />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-bold text-white">
+                          {r.reviewerDisplayName}
+                        </div>
+                        <span className="text-[11px] text-white/40">@{r.reviewerUsername}</span>
+                        <VerdictTag verdict={r.verdict} />
+                      </div>
+                      <div className="text-xs text-white/40">
+                        {new Date(r.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </div>
+                    <Stars stars={r.stars} />
+                    {r.skuSlug && r.skuTitle && (
+                      <Link
+                        href={`/product/${r.skuSlug}`}
+                        className="mt-1 block text-xs text-white/50 transition hover:text-amber-300"
+                      >
+                        on {r.skuTitle}
+                      </Link>
+                    )}
+                    {r.text && (
+                      <p className="mt-2 text-sm whitespace-pre-line text-white/80">{r.text}</p>
+                    )}
+                    {r.sellerReply && (
+                      <div className="mt-3 rounded-md border-l-2 border-amber-700/40 bg-amber-500/10 px-3 py-2">
+                        <div className="text-xs font-bold text-white/80">
+                          {profile.display_name} replied
+                        </div>
+                        <p className="mt-0.5 text-sm whitespace-pre-line text-white/80">
+                          {r.sellerReply}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
@@ -285,6 +395,34 @@ function Avatar({ name, large }: { name: string; large?: boolean }) {
       className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-bold text-white shadow-lg ${color} ${size}`}
     >
       {initial}
+    </div>
+  );
+}
+
+function VerdictTag({ verdict }: { verdict: "positive" | "neutral" | "negative" }) {
+  const cfg = {
+    positive: "bg-emerald-500/15 text-emerald-300",
+    neutral: "bg-amber-500/15 text-amber-300",
+    negative: "bg-rose-500/15 text-rose-300",
+  }[verdict];
+  const label = verdict[0].toUpperCase() + verdict.slice(1);
+  return (
+    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase ${cfg}`}>
+      {label}
+    </span>
+  );
+}
+
+function Stars({ stars }: { stars: number }) {
+  return (
+    <div className="mt-1 flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          size={12}
+          className={n <= stars ? "fill-amber-400 text-amber-400" : "text-white/20"}
+        />
+      ))}
     </div>
   );
 }

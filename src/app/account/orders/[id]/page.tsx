@@ -15,6 +15,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { CancelOrderButton } from "./cancel-order";
 import { ConfirmDeliveryButton } from "./confirm-delivery";
+import { LeaveReview } from "./leave-review";
 import { ShipForm } from "../../listings/[id]/ship-form";
 import { formatUSDFull } from "@/lib/utils";
 
@@ -111,6 +112,17 @@ export default async function OrderDetailPage({
     .select("username, display_name")
     .eq("id", counterpartyId)
     .maybeSingle();
+
+  // For released/completed orders, look up any existing review so we can
+  // show the LeaveReview form only when the buyer hasn't reviewed yet.
+  const { data: existingReview } =
+    ["Released", "Completed"].includes(order.status)
+      ? await supabase
+          .from("reviews")
+          .select("id, stars, verdict, text, created_at")
+          .eq("order_id", order.id)
+          .maybeSingle()
+      : { data: null };
 
   const total = order.total_cents / 100;
   const isShipped = ["Shipped", "Delivered", "Released", "Completed"].includes(order.status);
@@ -346,6 +358,51 @@ export default async function OrderDetailPage({
                 initialTracking={order.tracking}
                 needsShipBy={daysFromNow(order.placed_at, 2)}
               />
+            </div>
+          )}
+
+          {/* Buyer: leave a review after release */}
+          {isBuyer && isReleased && !existingReview && counterparty && (
+            <LeaveReview
+              orderId={order.id}
+              sellerUsername={counterparty.username}
+              sellerDisplayName={counterparty.display_name}
+            />
+          )}
+
+          {/* Either side can see the posted review once it exists */}
+          {existingReview && (
+            <div className="rounded-xl border border-emerald-700/30 bg-gradient-to-br from-emerald-500/5 to-transparent p-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-base font-black text-white">
+                  {isBuyer ? "Your review" : "Review from buyer"}
+                </h2>
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                    existingReview.verdict === "positive"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : existingReview.verdict === "neutral"
+                        ? "bg-amber-500/15 text-amber-300"
+                        : "bg-rose-500/15 text-rose-300"
+                  }`}
+                >
+                  {existingReview.verdict}
+                </span>
+              </div>
+              <div className="mt-1 text-sm text-amber-300">
+                {"★".repeat(existingReview.stars)}
+                <span className="text-white/20">
+                  {"★".repeat(5 - existingReview.stars)}
+                </span>
+              </div>
+              {existingReview.text && (
+                <p className="mt-2 text-sm whitespace-pre-line text-white/80">
+                  {existingReview.text}
+                </p>
+              )}
+              <div className="mt-2 text-[11px] text-white/40">
+                Posted {new Date(existingReview.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
             </div>
           )}
         </div>
