@@ -147,11 +147,16 @@ export function SellForm({
       {step === 1 && (
         <Card title="1. Find your product" subtitle="Search by year, brand, sport, or set">
           <div className="relative">
+            <label htmlFor="sell-product-search" className="sr-only">
+              Search the catalog by year, brand, sport, or set
+            </label>
             <Search
               className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-white/60"
               size={16}
+              aria-hidden="true"
             />
             <input
+              id="sell-product-search"
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}

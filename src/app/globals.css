@@ -48,3 +48,32 @@ body {
   background: rgba(212, 175, 55, 0.3);
   color: white;
 }
+
+/*
+ * Default keyboard-focus indicator for every interactive element. Many
+ * buttons in the app explicitly remove the browser default with
+ * `focus:outline-none` (or via Tailwind's `focus:ring-*` utilities) so we
+ * paint a visible, high-contrast amber ring on focus-visible only — the
+ * pseudo-class fires for keyboard navigation but not for mouse clicks, so
+ * mouse users don't see a ring after every click.
+ *
+ * Per-component rules can still opt into a tighter ring by adding their
+ * own `focus-visible:ring-*` classes; those win because Tailwind utilities
+ * are higher specificity than this layer-zero default.
+ */
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid #fbbf24; /* amber-400 */
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

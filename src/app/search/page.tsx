@@ -31,12 +31,17 @@ export default async function SearchPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
-      <form action="/search" method="get" className="relative mb-8">
+      <form action="/search" method="get" role="search" className="relative mb-8">
+        <label htmlFor="search-q" className="sr-only">
+          Search the marketplace
+        </label>
         <Search
           className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-white/50"
           size={18}
+          aria-hidden="true"
         />
         <input
+          id="search-q"
           name="q"
           defaultValue={q}
           autoFocus

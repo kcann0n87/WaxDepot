@@ -32,9 +32,13 @@ export function SiteHeader() {
           Sell
         </Link>
 
-        <form action="/search" method="get" className="relative hidden flex-1 md:block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-white/50" size={16} />
+        <form action="/search" method="get" role="search" className="relative hidden flex-1 md:block">
+          <label htmlFor="site-search" className="sr-only">
+            Search the marketplace
+          </label>
+          <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-white/50" size={16} aria-hidden="true" />
           <input
+            id="site-search"
             type="search"
             name="q"
             placeholder='Search "2025 Bowman Hobby"'

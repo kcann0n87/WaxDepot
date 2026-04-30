@@ -42,8 +42,12 @@ export function MobileSearch() {
               <X size={18} />
             </button>
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-white/60" size={16} />
+              <label htmlFor="mobile-search-input" className="sr-only">
+                Search the marketplace
+              </label>
+              <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-white/60" size={16} aria-hidden="true" />
               <input
+                id="mobile-search-input"
                 autoFocus
                 name="q"
                 value={q}
