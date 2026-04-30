@@ -9,6 +9,7 @@ import {
   emailFundsReleased,
   emailOrderShipped,
 } from "@/lib/email";
+import { createTracker } from "@/lib/easypost";
 
 export type ActionResult = { ok?: boolean; error?: string; orderId?: string };
 
@@ -297,6 +298,17 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
           orderHref: `https://waxdepot.io/account/orders/${orderId}`,
         });
       }
+    }
+
+    // Register the tracker with EasyPost so we get auto-delivered status.
+    // No-ops gracefully if EASYPOST_API_KEY isn't set (the cron + manual
+    // flow still works as the safety net).
+    const tracker = await createTracker(tracking, carrier, orderId);
+    if (tracker?.est_delivery_date) {
+      await supabase
+        .from("orders")
+        .update({ estimated_delivery: tracker.est_delivery_date })
+        .eq("id", orderId);
     }
 
     revalidatePath(`/account/orders/${orderId}`);

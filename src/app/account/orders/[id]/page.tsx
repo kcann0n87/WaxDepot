@@ -21,6 +21,7 @@ import { LeaveReview } from "./leave-review";
 import { MarkDeliveredButton } from "./mark-delivered";
 import { ShipForm } from "../../listings/[id]/ship-form";
 import { formatUSDFull } from "@/lib/utils";
+import { getTrackingUrl } from "@/lib/carriers";
 
 type OrderStatus =
   | "Charged"
@@ -508,8 +509,21 @@ export default async function OrderDetailPage({
                 <Truck size={16} className="text-white/60" />
                 Tracking
               </div>
-              <div className="text-xs text-white/50">{order.carrier}</div>
+              <div className="text-xs text-white/60">{order.carrier}</div>
               <div className="font-mono text-sm font-semibold text-white">{order.tracking}</div>
+              {(() => {
+                const url = getTrackingUrl(order.carrier, order.tracking);
+                return url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-300 hover:underline"
+                  >
+                    Track on {order.carrier} <ArrowRight size={12} />
+                  </a>
+                ) : null;
+              })()}
               {order.estimated_delivery && (
                 <div className="mt-3 flex items-center gap-1.5 text-xs text-white/60">
                   <Clock size={12} className="text-white/60" />
