@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ShieldCheck, TrendingUp, Zap } from "lucide-react";
+import { LogoMark } from "@/components/logo-mark";
 import { WaitlistForm } from "./waitlist-form";
 
 export default function ComingSoonPage() {
@@ -23,9 +24,7 @@ export default function ComingSoonPage() {
 
         <div className="text-center">
           <Link href="/" className="mb-8 inline-flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 font-black text-slate-900 shadow-2xl shadow-amber-500/30">
-              <span className="text-2xl">W</span>
-            </div>
+            <LogoMark size={56} className="drop-shadow-[0_12px_32px_rgba(212,175,55,0.35)]" />
             <span className="font-display text-3xl font-black tracking-tight text-white">
               Wax<span className="text-amber-400">Depot</span>
             </span>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Bell, Check, Heart, ShieldCheck, Trophy, UserPlus } from "lucide-react";
 import { sellers } from "@/lib/sellers";
 import { useFollowing } from "@/lib/follow";
+import { LogoMark } from "@/components/logo-mark";
 
 const sports = [
   { id: "NBA", label: "Basketball", emoji: "🏀" },
@@ -48,8 +49,8 @@ export default function WelcomePage() {
         {step === "intro" && (
           <Card>
             <div className="text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-2xl font-black text-slate-900 shadow-lg shadow-amber-500/20">
-                W
+              <div className="mx-auto inline-block">
+                <LogoMark size={64} className="drop-shadow-[0_12px_32px_rgba(212,175,55,0.35)]" />
               </div>
               <div className="mt-6 text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
                 Welcome

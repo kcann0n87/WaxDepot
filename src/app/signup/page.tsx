@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { LogoMark } from "@/components/logo-mark";
 import { SignupForm } from "./signup-form";
 
 export default async function SignupPage({
@@ -15,9 +16,7 @@ export default async function SignupPage({
       <div className="w-full">
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 font-black text-slate-900 shadow-lg shadow-amber-500/20">
-              W
-            </div>
+            <LogoMark size={40} className="drop-shadow-[0_8px_24px_rgba(212,175,55,0.25)]" />
             <span className="font-display text-xl font-black tracking-tight text-white">
               Wax<span className="text-amber-400">Depot</span>
             </span>
