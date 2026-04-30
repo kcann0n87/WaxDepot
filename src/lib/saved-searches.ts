@@ -11,7 +11,7 @@ import {
   type SavedSearchRecord,
 } from "@/app/actions/saved-searches";
 
-const KEY = "waxmarket:saved-searches";
+const KEY = "waxdepot:saved-searches";
 
 export type SavedSearch = SavedSearchRecord;
 
@@ -28,7 +28,7 @@ function readLocal(): SavedSearch[] {
 function writeLocal(items: SavedSearch[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(KEY, JSON.stringify(items));
-  window.dispatchEvent(new Event("waxmarket:saved-search-change"));
+  window.dispatchEvent(new Event("waxdepot:saved-search-change"));
 }
 
 export function useSavedSearches() {
@@ -89,13 +89,13 @@ export function useSavedSearches() {
     const onLocalChange = () => {
       if (!authedRef.current && mounted) setSearches(readLocal());
     };
-    window.addEventListener("waxmarket:saved-search-change", onLocalChange);
+    window.addEventListener("waxdepot:saved-search-change", onLocalChange);
     window.addEventListener("storage", onLocalChange);
 
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
-      window.removeEventListener("waxmarket:saved-search-change", onLocalChange);
+      window.removeEventListener("waxdepot:saved-search-change", onLocalChange);
       window.removeEventListener("storage", onLocalChange);
     };
   }, []);

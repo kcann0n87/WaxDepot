@@ -26,7 +26,7 @@ export function AddToCartButton({
       qty: 1,
     });
     setAdded(true);
-    window.dispatchEvent(new Event("waxmarket:cart-open"));
+    window.dispatchEvent(new Event("waxdepot:cart-open"));
     setTimeout(() => setAdded(false), 1500);
   };
 

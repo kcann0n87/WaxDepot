@@ -86,7 +86,7 @@ function NewDisputeForm() {
           </p>
           <div className="mx-auto mt-4 max-w-md rounded-md border border-white/10 bg-white/[0.02] p-3 text-xs text-white/60">
             <strong className="text-white/90">What happens next:</strong> {order.seller} has 48
-            hours to respond. WaxMarket Support reviews both sides within 3 business days.
+            hours to respond. WaxDepot Support reviews both sides within 3 business days.
             You&apos;ll get a notification at every step.
           </div>
           <div className="mt-6 flex justify-center gap-2">
@@ -301,7 +301,7 @@ function NewDisputeForm() {
             />
             <span className="text-xs text-white/80">
               I confirm the information above is accurate. I understand that filing a fraudulent
-              dispute can result in account suspension and that WaxMarket Support reviews each
+              dispute can result in account suspension and that WaxDepot Support reviews each
               dispute to determine the outcome.
             </span>
           </label>

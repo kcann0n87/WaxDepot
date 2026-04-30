@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, ShieldCheck } from "luci
 import { skus } from "@/lib/data";
 import { formatSkuTitle, formatUSDFull } from "@/lib/utils";
 
-type DisputeStatus = "Awaiting seller" | "Awaiting WaxMarket" | "Resolved — refunded" | "Resolved — denied";
+type DisputeStatus = "Awaiting seller" | "Awaiting WaxDepot" | "Resolved — refunded" | "Resolved — denied";
 
 const disputes: {
   id: string;
@@ -127,7 +127,7 @@ export default function DisputesPage() {
             <div className="font-semibold text-white/90">How disputes work</div>
             <p className="mt-1">
               Open a dispute from the order page within 3 days of delivery. Seller has 48 hours to
-              respond. WaxMarket Support reviews both sides within 3 business days. We err on the
+              respond. WaxDepot Support reviews both sides within 3 business days. We err on the
               side of buyers when authenticity is in question — see{" "}
               <Link href="/help/disputes/dispute-process" className="text-amber-300 hover:underline">
                 dispute process
@@ -167,7 +167,7 @@ function Stat({
 function StatusBadge({ status }: { status: DisputeStatus }) {
   const cfg = {
     "Awaiting seller": "bg-amber-500/10 text-amber-300",
-    "Awaiting WaxMarket": "bg-sky-500/10 text-sky-300",
+    "Awaiting WaxDepot": "bg-sky-500/10 text-sky-300",
     "Resolved — refunded": "bg-emerald-500/10 text-emerald-300",
     "Resolved — denied": "bg-white/5 text-white/60",
   }[status];

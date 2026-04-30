@@ -8,7 +8,7 @@ import {
   toggleFollow,
 } from "@/app/actions/follows";
 
-const KEY = "waxmarket:following";
+const KEY = "waxdepot:following";
 
 function readLocal(): string[] {
   if (typeof window === "undefined") return [];
@@ -23,7 +23,7 @@ function readLocal(): string[] {
 function writeLocal(items: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(KEY, JSON.stringify(items));
-  window.dispatchEvent(new Event("waxmarket:follow-change"));
+  window.dispatchEvent(new Event("waxdepot:follow-change"));
 }
 
 /**
@@ -82,13 +82,13 @@ export function useFollowing() {
     const onLocalChange = () => {
       if (!authedRef.current && mounted) setUsernames(readLocal());
     };
-    window.addEventListener("waxmarket:follow-change", onLocalChange);
+    window.addEventListener("waxdepot:follow-change", onLocalChange);
     window.addEventListener("storage", onLocalChange);
 
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
-      window.removeEventListener("waxmarket:follow-change", onLocalChange);
+      window.removeEventListener("waxdepot:follow-change", onLocalChange);
       window.removeEventListener("storage", onLocalChange);
     };
   }, []);

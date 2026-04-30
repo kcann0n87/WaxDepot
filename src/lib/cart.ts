@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "waxmarket:cart";
+const KEY = "waxdepot:cart";
 
 export type CartItem = {
   id: string;
@@ -29,7 +29,7 @@ function read(): CartItem[] {
 function write(items: CartItem[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(KEY, JSON.stringify(items));
-  window.dispatchEvent(new Event("waxmarket:cart-change"));
+  window.dispatchEvent(new Event("waxdepot:cart-change"));
 }
 
 export function useCart() {
@@ -40,10 +40,10 @@ export function useCart() {
     setItems(read());
     setHydrated(true);
     const onChange = () => setItems(read());
-    window.addEventListener("waxmarket:cart-change", onChange);
+    window.addEventListener("waxdepot:cart-change", onChange);
     window.addEventListener("storage", onChange);
     return () => {
-      window.removeEventListener("waxmarket:cart-change", onChange);
+      window.removeEventListener("waxdepot:cart-change", onChange);
       window.removeEventListener("storage", onChange);
     };
   }, []);

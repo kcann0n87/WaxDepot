@@ -26,8 +26,8 @@ export default function WelcomePage() {
 
   const finish = () => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("waxmarket:onboarded", "1");
-      window.localStorage.setItem("waxmarket:sports", JSON.stringify([...picked]));
+      window.localStorage.setItem("waxdepot:onboarded", "1");
+      window.localStorage.setItem("waxdepot:sports", JSON.stringify([...picked]));
     }
     router.push("/");
   };
@@ -55,7 +55,7 @@ export default function WelcomePage() {
                 Welcome
               </div>
               <h1 className="font-display mt-1 text-4xl font-black tracking-tight text-white">
-                Welcome to <span className="italic text-amber-400">WaxMarket</span>
+                Welcome to <span className="italic text-amber-400">WaxDepot</span>
               </h1>
               <p className="mt-3 text-white/60">
                 The marketplace for sealed sports cards. Real bid/ask, real escrow, no eBay tax.

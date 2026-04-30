@@ -9,7 +9,7 @@ export const sellerSeed = [
   { username: "thatdudedavid96", displayName: "thatdudedavid96", bio: "Reseller since 2020. I post early-morning ASAP shipping and message you the second I drop it off.", location: "Denver, CO", verified: true, avatarColor: "cyan" },
   { username: "nbkisit", displayName: "nbkisit", bio: "Hobby case breaker — single boxes, sealed cases, retail product. Power Seller status since 2024.", location: "Chicago, IL", verified: true, avatarColor: "emerald" },
   { username: "alehow-70", displayName: "alehow-70", bio: "Casual collector with overflow inventory. Honest descriptions, careful packaging.", location: "Las Vegas, NV", verified: true, avatarColor: "sky" },
-  { username: "hobbyhouse", displayName: "Hobby House", bio: "LCS in operation since 1998. The largest WaxMarket seller by volume.", location: "Cincinnati, OH", verified: true, avatarColor: "rose" },
+  { username: "hobbyhouse", displayName: "Hobby House", bio: "LCS in operation since 1998. The largest WaxDepot seller by volume.", location: "Cincinnati, OH", verified: true, avatarColor: "rose" },
   { username: "pristinepacks", displayName: "Pristine Packs", bio: "Online seller with 5+ years experience. I personally inspect every box before shipping.", location: "Tampa, FL", verified: true, avatarColor: "amber" },
 ];
 

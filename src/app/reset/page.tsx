@@ -23,7 +23,7 @@ export default async function ResetPage() {
               W
             </div>
             <span className="font-display text-xl font-black tracking-tight text-white">
-              Wax<span className="text-amber-400">Market</span>
+              Wax<span className="text-amber-400">Depot</span>
             </span>
           </Link>
           <h1 className="font-display mt-6 text-3xl font-black tracking-tight text-white">

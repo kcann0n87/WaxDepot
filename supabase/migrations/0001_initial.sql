@@ -1,4 +1,4 @@
--- WaxMarket initial schema
+-- WaxDepot initial schema
 -- Run this in your Supabase project's SQL Editor:
 -- https://supabase.com/dashboard/project/_/sql/new
 
@@ -15,7 +15,7 @@ create type order_status as enum ('Charged', 'InEscrow', 'Shipped', 'Delivered',
 create type listing_status as enum ('Active', 'Sold', 'Paused', 'Expired');
 create type bid_status as enum ('Active', 'Won', 'Outbid', 'Expired', 'Canceled');
 create type payout_status as enum ('Pending', 'InTransit', 'Paid', 'Failed');
-create type dispute_status as enum ('Awaiting seller', 'Awaiting WaxMarket', 'Resolved — refunded', 'Resolved — denied');
+create type dispute_status as enum ('Awaiting seller', 'Awaiting WaxDepot', 'Resolved — refunded', 'Resolved — denied');
 create type notification_type as enum (
   'bid-placed', 'outbid', 'bid-accepted',
   'order-shipped', 'order-delivered',

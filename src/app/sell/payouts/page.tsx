@@ -51,7 +51,7 @@ export default function PayoutsOnboardingPage() {
       <div className="mt-4 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-xs text-white/60">
         <Lock size={14} className="text-emerald-400" />
         <span>
-          Your information is securely processed by our payments partner. WaxMarket never stores
+          Your information is securely processed by our payments partner. WaxDepot never stores
           full bank or SSN data.
         </span>
       </div>
@@ -295,7 +295,7 @@ export default function PayoutsOnboardingPage() {
               <a href="#" className="text-amber-300 underline">
                 Payout Terms
               </a>
-              , and confirm the information above is accurate. I authorize WaxMarket to initiate ACH
+              , and confirm the information above is accurate. I authorize WaxDepot to initiate ACH
               credits to my bank account.
             </span>
           </label>

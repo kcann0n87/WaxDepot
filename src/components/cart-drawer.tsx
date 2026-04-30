@@ -13,8 +13,8 @@ export function CartDrawer() {
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
-    window.addEventListener("waxmarket:cart-open", onOpen);
-    return () => window.removeEventListener("waxmarket:cart-open", onOpen);
+    window.addEventListener("waxdepot:cart-open", onOpen);
+    return () => window.removeEventListener("waxdepot:cart-open", onOpen);
   }, []);
 
   useEffect(() => {

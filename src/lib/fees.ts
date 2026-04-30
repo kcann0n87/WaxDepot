@@ -1,4 +1,4 @@
-// WaxMarket fee model — flat commission, no separate payment processing line.
+// WaxDepot fee model — flat commission, no separate payment processing line.
 // (We absorb Stripe's 2.9% + $0.30 internally.)
 
 export type SellerTier = "Starter" | "Pro" | "Elite";

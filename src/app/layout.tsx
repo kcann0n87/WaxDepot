@@ -15,7 +15,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "WaxMarket — The marketplace for serious collectors",
+  title: "WaxDepot — The marketplace for serious collectors",
   description: "Buy and sell sealed sports card boxes with the transparency of a stock market. Real bid/ask, real escrow, real provenance.",
 };
 

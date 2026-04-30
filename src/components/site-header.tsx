@@ -16,7 +16,7 @@ export function SiteHeader() {
             W
           </div>
           <span className="font-display text-lg font-black tracking-tight text-white">
-            Wax<span className="text-amber-400">Market</span>
+            Wax<span className="text-amber-400">Depot</span>
           </span>
         </Link>
 

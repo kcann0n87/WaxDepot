@@ -8,7 +8,7 @@ import {
   toggleWatch,
 } from "@/app/actions/watchlist";
 
-const KEY = "waxmarket:watchlist";
+const KEY = "waxdepot:watchlist";
 
 function readLocal(): string[] {
   if (typeof window === "undefined") return [];
@@ -23,7 +23,7 @@ function readLocal(): string[] {
 function writeLocal(ids: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(KEY, JSON.stringify(ids));
-  window.dispatchEvent(new Event("waxmarket:watchlist-change"));
+  window.dispatchEvent(new Event("waxdepot:watchlist-change"));
 }
 
 /**
@@ -85,13 +85,13 @@ export function useWatchlist() {
     const onLocalChange = () => {
       if (!authedRef.current && mounted) setIds(readLocal());
     };
-    window.addEventListener("waxmarket:watchlist-change", onLocalChange);
+    window.addEventListener("waxdepot:watchlist-change", onLocalChange);
     window.addEventListener("storage", onLocalChange);
 
     return () => {
       mounted = false;
       sub.subscription.unsubscribe();
-      window.removeEventListener("waxmarket:watchlist-change", onLocalChange);
+      window.removeEventListener("waxdepot:watchlist-change", onLocalChange);
       window.removeEventListener("storage", onLocalChange);
     };
   }, []);

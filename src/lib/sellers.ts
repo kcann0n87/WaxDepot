@@ -143,7 +143,7 @@ export const sellers: SellerProfile[] = [
   {
     username: "hobbyhouse",
     displayName: "Hobby House",
-    bio: "LCS in operation since 1998. The largest WaxMarket seller by volume. Cases, boxes, packs — we have it.",
+    bio: "LCS in operation since 1998. The largest WaxDepot seller by volume. Cases, boxes, packs — we have it.",
     location: "Cincinnati, OH",
     joinedAt: "2021-03-08",
     rating: 99.9,
@@ -318,7 +318,7 @@ export const reviews: Review[] = [
     stars: 5,
     verdict: "positive",
     subRatings: { itemAccuracy: 5, communication: 5, shippingSpeed: 5, shippingCost: 5 },
-    text: "These guys are a machine. Ship out same day, every time. My favorite WaxMarket seller.",
+    text: "These guys are a machine. Ship out same day, every time. My favorite WaxDepot seller.",
     ts: "2026-04-12 14:20",
   },
 ];

@@ -32,7 +32,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "buyer-protection",
         title: "What is Buyer Protection?",
-        body: "Every order is covered by WaxMarket Buyer Protection. Your payment stays in escrow until you confirm the box arrived sealed. If something's wrong (resealed, wrong item, damaged), open a dispute within 3 days of delivery for a full refund.",
+        body: "Every order is covered by WaxDepot Buyer Protection. Your payment stays in escrow until you confirm the box arrived sealed. If something's wrong (resealed, wrong item, damaged), open a dispute within 3 days of delivery for a full refund.",
       },
       {
         slug: "shipping-times",
@@ -106,7 +106,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "dispute-process",
         title: "What happens after I open a dispute?",
-        body: "The seller has 48 hours to respond. WaxMarket Support reviews both sides within 3 business days. If we side with you, you get a full refund and the seller is on the hook for return shipping. If we side with the seller, funds are released to them.",
+        body: "The seller has 48 hours to respond. WaxDepot Support reviews both sides within 3 business days. If we side with you, you get a full refund and the seller is on the hook for return shipping. If we side with the seller, funds are released to them.",
       },
       {
         slug: "resealed-wax",
@@ -134,7 +134,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "delete-account",
         title: "How do I delete my account?",
-        body: "Email support@waxmarket.io with the subject \"Delete my account.\" We'll permanently remove your data within 30 days. Active orders and pending payouts must be settled first.",
+        body: "Email support@waxdepot.io with the subject \"Delete my account.\" We'll permanently remove your data within 30 days. Active orders and pending payouts must be settled first.",
       },
     ],
   },

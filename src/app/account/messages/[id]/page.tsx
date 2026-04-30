@@ -53,7 +53,7 @@ export default async function MessageThreadPage({
                 ? "Seller"
                 : convo.withRole === "buyer"
                   ? "Buyer"
-                  : "WaxMarket Support"}
+                  : "WaxDepot Support"}
               {convo.subject && ` · ${convo.subject}`}
             </div>
           </div>

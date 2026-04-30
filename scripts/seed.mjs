@@ -63,7 +63,7 @@ import { skus, sellerSeed, listingFor, basePriceFor } from "./seed-data.mjs";
 
 async function ensureSeller(s) {
   // Try to find an existing user by the synthetic email.
-  const email = `${s.username}@waxmarket.demo`;
+  const email = `${s.username}@waxdepot.demo`;
 
   // Look for an existing profile by username first (faster).
   const { data: existing } = await supabase
