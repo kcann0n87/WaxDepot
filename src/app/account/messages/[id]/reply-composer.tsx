@@ -1,19 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { Paperclip, Send } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Paperclip, Send } from "lucide-react";
+import { sendMessage } from "@/app/actions/messages";
 
-export function ReplyComposer({ with_, onSend }: { with_: string; onSend: (text: string) => void }) {
+export function ReplyComposer({
+  conversationId,
+  withName,
+}: {
+  conversationId: string;
+  withName: string;
+}) {
+  const router = useRouter();
   const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const submit = () => {
-    if (!text.trim()) return;
-    onSend(text.trim());
-    setText("");
+    if (!text.trim() || pending) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await sendMessage(conversationId, text);
+      if (!result.ok) {
+        setError(result.error ?? "Could not send.");
+        return;
+      }
+      setText("");
+      router.refresh();
+    });
   };
 
   return (
     <div className="border-t border-white/5 p-4">
+      {error && (
+        <div className="mb-2 rounded-md border border-rose-700/40 bg-rose-500/10 p-2 text-xs text-rose-200">
+          {error}
+        </div>
+      )}
       <div className="flex gap-2">
         <textarea
           value={text}
@@ -25,21 +49,24 @@ export function ReplyComposer({ with_, onSend }: { with_: string; onSend: (text:
             }
           }}
           rows={2}
-          placeholder={`Reply to ${with_}...`}
-          className="flex-1 resize-none rounded-md border border-white/15 px-3 py-2 text-sm focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
+          placeholder={`Reply to ${withName}...`}
+          className="flex-1 resize-none rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-amber-400/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
         />
         <div className="flex flex-col gap-1.5">
           <button
             onClick={submit}
-            disabled={!text.trim()}
-            className="rounded-md bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!text.trim() || pending}
+            className="flex items-center justify-center rounded-md bg-gradient-to-r from-amber-400 to-amber-500 p-2 text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send"
           >
-            <Send size={16} />
+            {pending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
           </button>
           <button
-            className="rounded-md border border-white/15 bg-[#101012] p-2 text-white/50 hover:bg-white/[0.02]"
+            type="button"
+            disabled
+            className="rounded-md border border-white/15 bg-[#101012] p-2 text-white/30"
             aria-label="Attach file"
+            title="Attachments coming soon"
           >
             <Paperclip size={16} />
           </button>

@@ -47,13 +47,25 @@ export async function createBid(formData: FormData): Promise<CreateBidResult> {
         expires_at: expiresAt,
         status: "Active",
       })
-      .select("id, expires_at, sku:skus!bids_sku_id_fkey(slug)")
+      .select("id, expires_at, sku:skus!bids_sku_id_fkey(slug, year, brand, product)")
       .single();
 
     if (error) return { error: error.message };
 
     const skuRel = Array.isArray(data?.sku) ? data.sku[0] : data?.sku;
-    const slug = (skuRel as { slug?: string } | null)?.slug;
+    const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
+    const slug = skuMeta?.slug;
+
+    // Fan out a "bid-placed" notification to the buyer for activity feed.
+    if (skuMeta) {
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        type: "bid-placed",
+        title: "Bid placed",
+        body: `Your bid of $${(priceCents / 100).toFixed(2)} on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} is live.`,
+        href: slug ? `/product/${slug}` : "/account",
+      });
+    }
 
     revalidatePath("/account");
     if (slug) revalidatePath(`/product/${slug}`);

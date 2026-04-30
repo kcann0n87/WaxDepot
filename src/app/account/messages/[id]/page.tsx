@@ -1,38 +1,20 @@
-"use client";
-
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
-import { useEffect } from "react";
+import { notFound } from "next/navigation";
 import { ArrowLeft, Package, ShieldCheck } from "lucide-react";
-import { useMessages } from "@/lib/messages-store";
-import { skus } from "@/lib/data";
+import { getConversation, markConversationRead } from "@/app/actions/messages";
 import { ReplyComposer } from "./reply-composer";
-import { formatSkuTitle, formatUSDFull } from "@/lib/utils";
-import { findOrder } from "@/lib/orders";
 
-export default function MessageThreadPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
-  const { findConversation, hydrated, sendReply, markRead } = useMessages();
-  const convo = id ? findConversation(id) : null;
-
-  useEffect(() => {
-    if (id && convo?.unread) markRead(id);
-  }, [id, convo?.unread, markRead]);
-
-  if (!hydrated) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-6">
-        <div className="h-32 animate-pulse rounded-xl bg-white/5" />
-        <div className="mt-3 h-64 animate-pulse rounded-xl bg-white/5" />
-      </div>
-    );
-  }
-
+export default async function MessageThreadPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const convo = await getConversation(id);
   if (!convo) notFound();
 
-  const sku = convo.skuId ? skus.find((s) => s.id === convo.skuId) : null;
-  const order = convo.orderId ? findOrder(convo.orderId) : null;
+  // Best-effort mark-read; don't block render if it fails.
+  await markConversationRead(id).catch(() => {});
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -41,24 +23,25 @@ export default function MessageThreadPage() {
           <ArrowLeft size={14} /> Messages
         </Link>
         <span>/</span>
-        <span className="text-white">{convo.with}</span>
+        <span className="text-white">{convo.withDisplayName}</span>
       </div>
 
       <header className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Avatar name={convo.with} support={convo.withRole === "support"} />
+          <Avatar name={convo.withDisplayName} support={convo.withRole === "support"} />
           <div>
             <div className="flex items-center gap-1.5 text-lg font-bold text-white">
               {convo.withRole === "seller" ? (
-                <Link href={`/seller/${convo.with}`} className="hover:text-amber-300">
-                  {convo.with}
+                <Link
+                  href={`/seller/${convo.withUsername}`}
+                  className="transition hover:text-amber-300"
+                >
+                  {convo.withDisplayName}
                 </Link>
               ) : (
-                <span>{convo.with}</span>
+                <span>{convo.withDisplayName}</span>
               )}
-              {convo.withRating !== undefined && (
-                <span className="text-xs font-semibold text-emerald-400">{convo.withRating}%</span>
-              )}
+              <span className="text-xs font-normal text-white/40">@{convo.withUsername}</span>
               {convo.withRole === "support" && (
                 <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-400">
                   STAFF
@@ -66,33 +49,30 @@ export default function MessageThreadPage() {
               )}
             </div>
             <div className="text-xs text-white/50">
-              {convo.withRole === "seller" ? "Seller" : convo.withRole === "buyer" ? "Buyer" : "WaxMarket Support"}
-              {sku && ` · ${formatSkuTitle(sku)}`}
+              {convo.withRole === "seller"
+                ? "Seller"
+                : convo.withRole === "buyer"
+                  ? "Buyer"
+                  : "WaxMarket Support"}
+              {convo.subject && ` · ${convo.subject}`}
             </div>
           </div>
         </div>
       </header>
 
-      {order && sku && (
+      {convo.orderId && (
         <Link
-          href={`/account/orders/${order.id}`}
-          className="mb-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 hover:bg-white/5"
+          href={`/account/orders/${convo.orderId}`}
+          className="mb-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 transition hover:bg-white/5"
         >
-          <div
-            className="flex h-12 w-10 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})` }}
-          >
-            {sku.brand.slice(0, 4).toUpperCase()}
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/5 bg-white/5 text-amber-300">
+            <Package size={14} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-white/50">
-              Order <span className="font-mono text-white/80">{order.id}</span>
+              Order <span className="font-mono text-white/80">{convo.orderId}</span>
             </div>
-            <div className="line-clamp-1 text-sm font-bold text-white">{formatSkuTitle(sku)}</div>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="text-sm font-bold text-white">{formatUSDFull(order.total)}</div>
-            <div className="text-[11px] text-white/50">{order.status}</div>
+            <div className="text-sm font-bold text-white">View order details →</div>
           </div>
         </Link>
       )}
@@ -100,18 +80,21 @@ export default function MessageThreadPage() {
       <div className="rounded-xl border border-white/10 bg-[#101012]">
         <ol className="divide-y divide-white/5">
           {convo.messages.map((m) => (
-            <li key={m.id} className={`px-5 py-4 ${m.from === "buyer" ? "bg-white/[0.02]" : ""}`}>
+            <li
+              key={m.id}
+              className={`px-5 py-4 ${m.fromYou ? "bg-white/[0.02]" : ""}`}
+            >
               <div className="mb-1 flex items-center gap-2 text-xs">
                 <span
                   className={`font-bold ${
-                    m.from === "buyer"
+                    m.fromYou
                       ? "text-white/80"
-                      : m.from === "support"
+                      : m.fromRole === "support"
                         ? "text-amber-400"
                         : "text-white"
                   }`}
                 >
-                  {m.from === "buyer" ? "You" : convo.with}
+                  {m.fromYou ? "You" : convo.withDisplayName}
                 </span>
                 <span className="text-white/40">·</span>
                 <span className="text-white/40">{formatTs(m.ts)}</span>
@@ -150,10 +133,7 @@ export default function MessageThreadPage() {
             </li>
           ))}
         </ol>
-        <ReplyComposer
-          with_={convo.with}
-          onSend={(text) => sendReply(convo.id, text)}
-        />
+        <ReplyComposer conversationId={convo.id} withName={convo.withDisplayName} />
       </div>
     </div>
   );
@@ -162,24 +142,33 @@ export default function MessageThreadPage() {
 function Avatar({ name, support }: { name: string; support?: boolean }) {
   if (support) {
     return (
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-sm font-black text-white">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-sm font-black text-slate-900 shadow-md">
         WM
       </div>
     );
   }
   const initial = name[0]?.toUpperCase() ?? "?";
-  const colors = ["bg-emerald-600", "bg-sky-600", "bg-rose-600", "bg-amber-600", "bg-violet-600", "bg-cyan-600"];
+  const colors = [
+    "from-emerald-400 to-emerald-600",
+    "from-sky-400 to-sky-600",
+    "from-rose-400 to-rose-600",
+    "from-amber-400 to-amber-600",
+    "from-violet-400 to-violet-600",
+    "from-cyan-400 to-cyan-600",
+  ];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
-    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white ${color}`}>
+    <div
+      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-base font-bold text-white shadow-md ${color}`}
+    >
       {initial}
     </div>
   );
 }
 
-function formatTs(ts: string) {
-  const [date, time] = ts.split(" ");
-  const [y, m, d] = date.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return `${dt.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${time}`;
+function formatTs(iso: string) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${date} · ${time}`;
 }

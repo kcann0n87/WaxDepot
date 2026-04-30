@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownToLine,
@@ -14,11 +14,17 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
-import { type NotificationType } from "@/lib/notifications";
-import { useNotifications } from "@/lib/notifications-store";
+import { createClient } from "@/lib/supabase/client";
+import {
+  getMyNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationItem,
+  type NotificationType,
+} from "@/app/actions/notifications";
 
 const iconFor = (t: NotificationType) => {
-  const map = {
+  const map: Record<NotificationType, React.ReactNode> = {
     "bid-placed": <TrendingUp size={14} className="text-amber-400" />,
     outbid: <TrendingDown size={14} className="text-rose-400" />,
     "bid-accepted": <Zap size={14} className="text-amber-400" />,
@@ -34,8 +40,32 @@ const iconFor = (t: NotificationType) => {
 
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
-  const { items, hydrated, unread, markRead, markAllRead } = useNotifications();
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    const result = await getMyNotifications(20);
+    setItems(result.items);
+    setUnread(result.unread);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const supabase = createClient();
+    (async () => {
+      await load();
+      if (mounted) setHydrated(true);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      load();
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [load]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -46,6 +76,18 @@ export function NotificationsBell() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  const onMarkRead = (id: string) => {
+    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
+    setUnread((u) => Math.max(0, u - 1));
+    markNotificationRead(id).catch(() => {});
+  };
+
+  const onMarkAllRead = () => {
+    setItems((prev) => prev.map((n) => ({ ...n, unread: false })));
+    setUnread(0);
+    markAllNotificationsRead().catch(() => {});
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -73,7 +115,7 @@ export function NotificationsBell() {
             </div>
             {unread > 0 && (
               <button
-                onClick={() => markAllRead()}
+                onClick={onMarkAllRead}
                 className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/10"
               >
                 <CheckCheck size={12} />
@@ -82,36 +124,42 @@ export function NotificationsBell() {
             )}
           </div>
 
-          <ul className="max-h-[420px] divide-y divide-white/5 overflow-y-auto">
-            {items.map((n) => (
-              <li key={n.id}>
-                <Link
-                  href={n.href}
-                  onClick={() => {
-                    markRead(n.id);
-                    setOpen(false);
-                  }}
-                  className={`flex gap-3 px-4 py-3 transition hover:bg-white/[0.03] ${
-                    n.unread ? "bg-amber-500/5" : ""
-                  }`}
-                >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/5 bg-white/5">
-                    {iconFor(n.type)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <div className="text-sm font-semibold text-white">{n.title}</div>
-                      <div className="shrink-0 text-[11px] text-white/40">{ago(n.ts)}</div>
+          {items.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-white/50">
+              {hydrated ? "No notifications yet." : "Loading..."}
+            </div>
+          ) : (
+            <ul className="max-h-[420px] divide-y divide-white/5 overflow-y-auto">
+              {items.map((n) => (
+                <li key={n.id}>
+                  <Link
+                    href={n.href}
+                    onClick={() => {
+                      onMarkRead(n.id);
+                      setOpen(false);
+                    }}
+                    className={`flex gap-3 px-4 py-3 transition hover:bg-white/[0.03] ${
+                      n.unread ? "bg-amber-500/5" : ""
+                    }`}
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/5 bg-white/5">
+                      {iconFor(n.type)}
                     </div>
-                    <div className="mt-0.5 line-clamp-2 text-xs text-white/60">{n.body}</div>
-                  </div>
-                  {n.unread && (
-                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{n.title}</div>
+                        <div className="shrink-0 text-[11px] text-white/40">{ago(n.createdAt)}</div>
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 text-xs text-white/60">{n.body}</div>
+                    </div>
+                    {n.unread && (
+                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <div className="border-t border-white/5 px-4 py-2.5 text-center">
             <Link
@@ -128,12 +176,9 @@ export function NotificationsBell() {
   );
 }
 
-function ago(ts: string) {
-  const [date, time] = ts.split(" ");
-  const [y, m, d] = date.split("-").map(Number);
-  const [hh, mm] = (time || "00:00").split(":").map(Number);
-  const eventTime = new Date(y, m - 1, d, hh, mm).getTime();
-  const now = new Date(2026, 3, 28, 10, 0).getTime();
+function ago(iso: string) {
+  const eventTime = new Date(iso).getTime();
+  const now = Date.now();
   const diffMin = Math.max(Math.floor((now - eventTime) / 60000), 1);
   if (diffMin < 60) return `${diffMin}m`;
   const diffHr = Math.floor(diffMin / 60);
