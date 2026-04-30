@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, CreditCard, Loader2, Lock, X } from "lucide-react";
+import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 import { Sku } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
 import { createBid } from "@/app/actions/bids";
@@ -40,16 +40,13 @@ export function BuyBidActions({
     setBidError(null);
   };
   const bidNum = parseFloat(bidAmount) || 0;
-  const buyTax = ask ? Math.round(ask * 0.07 * 100) / 100 : 0;
-  const buyShipping = 0;
-  const buyTotal = (ask || 0) + buyTax + buyShipping;
 
-  const handleSubmitBid = () => {
+  const submitBid = (price: number, days: number, onSuccess: () => void) => {
     setBidError(null);
     const formData = new FormData();
     formData.set("skuId", sku.id);
-    formData.set("price", String(bidNum));
-    formData.set("days", bidDays);
+    formData.set("price", String(price));
+    formData.set("days", String(days));
     startBidTransition(async () => {
       const result = await createBid(formData);
       if (result.needsAuth) {
@@ -61,8 +58,16 @@ export function BuyBidActions({
         setBidError(result.error);
         return;
       }
-      setMode("bid-confirmed");
+      onSuccess();
     });
+  };
+
+  const handleSubmitBid = () => submitBid(bidNum, parseInt(bidDays, 10), () => setMode("bid-confirmed"));
+  const handleBuyAtAsk = () => {
+    if (ask === null) return;
+    // "Buy Now" = bid at the lowest ask, expires in 1 day. When the seller
+    // accepts (or auto-match runs once Stripe is wired), an order is created.
+    submitBid(ask, 1, () => setMode("buy-confirmed"));
   };
 
   return (
@@ -121,11 +126,10 @@ export function BuyBidActions({
               <BuyModal
                 sku={sku}
                 ask={ask!}
-                tax={buyTax}
-                shipping={buyShipping}
-                total={buyTotal}
                 onClose={close}
-                onConfirm={() => setMode("buy-confirmed")}
+                onConfirm={handleBuyAtAsk}
+                pending={bidPending}
+                error={bidError}
               />
             )}
             {mode === "bid" && (
@@ -145,13 +149,13 @@ export function BuyBidActions({
             )}
             {mode === "buy-confirmed" && (
               <ConfirmedModal
-                title="Order placed"
+                title="Bid at ask placed"
                 lines={[
                   `${formatSkuTitle(sku)}`,
-                  `Order ${orderId} · ${formatUSDFull(buyTotal)}`,
-                  `Payment held in escrow until your box ships and arrives sealed.`,
+                  `${formatUSD(ask ?? 0)} · expires in 1 day`,
+                  `Locks the lowest ask. The order completes when the seller accepts (payment processing rolling out — for now no card is charged).`,
                 ]}
-                ctaLabel="View order"
+                ctaLabel="View my bids"
                 ctaHref="/account"
                 onClose={close}
               />
@@ -162,7 +166,7 @@ export function BuyBidActions({
                 lines={[
                   `${formatSkuTitle(sku)}`,
                   `Your bid: ${formatUSD(bidNum)} · expires in ${bidDays} days`,
-                  `If a seller accepts, you&apos;ll be charged automatically.`,
+                  `If a seller accepts, payment processes once Stripe is connected.`,
                 ]}
                 ctaLabel="View my bids"
                 ctaHref="/account"
@@ -209,31 +213,21 @@ function ModalHeader({ title, onClose }: { title: string; onClose: () => void })
 function BuyModal({
   sku,
   ask,
-  tax,
-  shipping,
-  total,
   onClose,
   onConfirm,
+  pending,
+  error,
 }: {
   sku: Sku;
   ask: number;
-  tax: number;
-  shipping: number;
-  total: number;
   onClose: () => void;
   onConfirm: () => void;
+  pending: boolean;
+  error: string | null;
 }) {
-  const [cardNumber, setCardNumber] = useState("");
-  const [exp, setExp] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [zip, setZip] = useState("");
-  const [saveCard, setSaveCard] = useState(true);
-
-  const cardValid = cardNumber.replace(/\s/g, "").length >= 13 && exp.length === 5 && cvc.length >= 3 && zip.length >= 5;
-
   return (
     <>
-      <ModalHeader title="Confirm purchase" onClose={onClose} />
+      <ModalHeader title="Buy at lowest ask" onClose={onClose} />
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
           <div
@@ -249,96 +243,44 @@ function BuyModal({
         </div>
 
         <dl className="mt-4 space-y-2 text-sm">
-          <Row label="Item price" value={formatUSDFull(ask)} />
-          <Row label="Shipping" value={shipping === 0 ? "Free" : formatUSDFull(shipping)} />
-          <Row label="Sales tax (est)" value={formatUSDFull(tax)} />
+          <Row label="Lowest ask" value={formatUSDFull(ask)} />
+          <Row label="Bid expires" value="1 day" />
           <div className="my-2 border-t border-white/5" />
-          <Row label="Total" value={formatUSDFull(total)} bold />
+          <Row label="Locks at" value={formatUSDFull(ask)} bold />
         </dl>
 
-        <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold text-white/80">Payment</span>
-            <span className="inline-flex items-center gap-1 text-xs text-white/40">
-              <Lock size={11} /> Encrypted
-            </span>
-          </div>
-          <div className="rounded-lg border border-white/15 bg-[#101012] p-3">
-            <div className="flex items-center gap-2">
-              <CreditCard size={16} className="text-white/40" />
-              <input
-                inputMode="numeric"
-                value={cardNumber}
-                onChange={(e) =>
-                  setCardNumber(
-                    e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 19)
-                      .replace(/(\d{4})(?=\d)/g, "$1 "),
-                  )
-                }
-                placeholder="1234 1234 1234 1234"
-                className="flex-1 text-sm focus:outline-none"
-              />
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 border-t border-white/5 pt-2">
-              <input
-                inputMode="numeric"
-                value={exp}
-                onChange={(e) => {
-                  let v = e.target.value.replace(/\D/g, "").slice(0, 4);
-                  if (v.length >= 3) v = `${v.slice(0, 2)}/${v.slice(2)}`;
-                  setExp(v);
-                }}
-                placeholder="MM/YY"
-                className="text-sm focus:outline-none"
-              />
-              <input
-                inputMode="numeric"
-                value={cvc}
-                maxLength={4}
-                onChange={(e) => setCvc(e.target.value.replace(/\D/g, ""))}
-                placeholder="CVC"
-                className="text-sm focus:outline-none"
-              />
-              <input
-                inputMode="numeric"
-                value={zip}
-                maxLength={5}
-                onChange={(e) => setZip(e.target.value.replace(/\D/g, ""))}
-                placeholder="ZIP"
-                className="text-sm focus:outline-none"
-              />
+        <div className="mt-4 rounded-md border border-emerald-700/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+          <div className="flex items-start gap-2">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-400" />
+            <div>
+              <strong>How this works:</strong> Buy Now places a 1-day bid at the lowest ask. The
+              order completes when the seller accepts. Payment processing is rolling out next —
+              your card isn&apos;t charged yet, but the bid is real.
             </div>
           </div>
-          <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-white/60">
-            <input
-              type="checkbox"
-              checked={saveCard}
-              onChange={(e) => setSaveCard(e.target.checked)}
-            />
-            Save card for future purchases
-          </label>
         </div>
 
-        <div className="mt-4 rounded-md border border-emerald-700/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
-          <strong>Buyer Protection:</strong> Your payment is held in escrow. Released to the seller
-          only after you confirm the box arrived sealed.
-        </div>
+        {error && (
+          <div className="mt-4 rounded-md border border-rose-700/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
 
         <div className="mt-5 flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 rounded-md border border-white/15 bg-[#101012] px-4 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/[0.02]"
+            disabled={pending}
+            className="flex-1 rounded-md border border-white/15 bg-[#101012] px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.02] disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            disabled={!cardValid}
+            disabled={pending}
             onClick={onConfirm}
-            className="flex-1 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2.5 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Pay {formatUSD(total)}
+            {pending ? <Loader2 size={14} className="animate-spin" /> : null}
+            Place bid at {formatUSD(ask)}
           </button>
         </div>
       </div>

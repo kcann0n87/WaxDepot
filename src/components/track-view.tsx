@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { trackRecentlyViewed } from "@/lib/recently-viewed";
+import { trackView } from "@/app/actions/recently-viewed";
 
 export function TrackView({ skuId }: { skuId: string }) {
   useEffect(() => {
-    trackRecentlyViewed(skuId);
+    // Fire-and-forget — server action no-ops for anonymous users.
+    trackView(skuId).catch(() => {});
   }, [skuId]);
   return null;
 }
