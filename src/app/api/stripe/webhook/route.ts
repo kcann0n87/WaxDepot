@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { emailPaymentReceived } from "@/lib/email";
 
 /**
  * Stripe webhook handler. Listens for events Stripe pushes after Checkout
@@ -146,25 +147,58 @@ async function handleEvent(event: Stripe.Event) {
 
       await supabase.from("orders").update(update).eq("id", orderId);
 
-      // Notify the seller — they can ship now.
+      // Notify both sides: seller "ship now", buyer "payment received".
       const { data: order } = await supabase
         .from("orders")
         .select(
-          "seller_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
+          "seller_id, buyer_id, total_cents, sku:skus!orders_sku_id_fkey(year, brand, product)",
         )
         .eq("id", orderId)
         .maybeSingle();
       if (order) {
         const sku = Array.isArray(order.sku) ? order.sku[0] : order.sku;
-        await supabase.from("notifications").insert({
-          user_id: order.seller_id,
-          type: "bid-accepted",
-          title: "Payment received — ship the order",
-          body: sku
-            ? `Buyer paid for ${sku.year} ${sku.brand} ${sku.product}. Funds in escrow until they confirm delivery.`
-            : `Buyer paid for order ${orderId}. Funds are in escrow.`,
-          href: `/account/orders/${orderId}`,
-        });
+        const productTitle = sku
+          ? `${sku.year} ${sku.brand} ${sku.product}`
+          : `order ${orderId}`;
+
+        await supabase.from("notifications").insert([
+          {
+            user_id: order.seller_id,
+            type: "bid-accepted",
+            title: "Payment received — ship the order",
+            body: `Buyer paid for ${productTitle}. Funds in escrow until they confirm delivery.`,
+            href: `/account/orders/${orderId}`,
+          },
+        ]);
+
+        // Transactional emails for both sides. Look up auth emails by
+        // user id; skip silently if not available.
+        try {
+          const [{ data: sellerAuth }, { data: buyerAuth }] = await Promise.all([
+            supabase.auth.admin.getUserById(order.seller_id),
+            supabase.auth.admin.getUserById(order.buyer_id),
+          ]);
+          if (sellerAuth?.user?.email) {
+            await emailPaymentReceived({
+              to: sellerAuth.user.email,
+              role: "seller",
+              productTitle,
+              amountDollars: order.total_cents / 100,
+              orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+            });
+          }
+          if (buyerAuth?.user?.email) {
+            await emailPaymentReceived({
+              to: buyerAuth.user.email,
+              role: "buyer",
+              productTitle,
+              amountDollars: order.total_cents / 100,
+              orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+            });
+          }
+        } catch (e) {
+          console.error("payment received emails failed:", e);
+        }
       }
       break;
     }

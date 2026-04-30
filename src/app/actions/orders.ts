@@ -4,8 +4,30 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { TIER_FEE, type SellerTier } from "@/lib/fees";
+import {
+  emailBidAccepted,
+  emailFundsReleased,
+  emailOrderShipped,
+} from "@/lib/email";
 
 export type ActionResult = { ok?: boolean; error?: string; orderId?: string };
+
+/**
+ * Helper: best-effort lookup of a user's email by their auth id, used for
+ * routing transactional emails. Falls back to null silently — caller should
+ * skip the email when null.
+ */
+async function getUserEmail(userId: string): Promise<string | null> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.admin
+      .getUserById(userId)
+      .catch(() => ({ data: null as unknown as { user: { email?: string } | null } }));
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function newOrderId() {
   return `WM-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -128,13 +150,23 @@ export async function acceptBid(formData: FormData): Promise<ActionResult> {
     const skuRel = Array.isArray(bid.sku) ? bid.sku[0] : bid.sku;
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
+      const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
       await supabase.from("notifications").insert({
         user_id: bid.buyer_id,
         type: "bid-accepted",
         title: "Bid accepted — complete payment",
-        body: `${sellerProfile.data?.display_name ?? "The seller"} accepted your $${(bid.price_cents / 100).toFixed(0)} bid on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}. Pay now to lock the order.`,
+        body: `${sellerProfile.data?.display_name ?? "The seller"} accepted your $${(bid.price_cents / 100).toFixed(0)} bid on ${productTitle}. Pay now to lock the order.`,
         href: `/account/orders/${orderId}`,
       });
+      const buyerEmail = await getUserEmail(bid.buyer_id);
+      if (buyerEmail) {
+        await emailBidAccepted({
+          to: buyerEmail,
+          productTitle,
+          amountDollars: bid.price_cents / 100,
+          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+        });
+      }
     }
 
     revalidatePath(`/account/listings/${listing.id}`);
@@ -247,13 +279,24 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
     const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
+      const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
       await supabase.from("notifications").insert({
         user_id: order.buyer_id,
         type: "order-shipped",
         title: "Your order shipped",
-        body: `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} · ${carrier} · ${tracking}`,
+        body: `${productTitle} · ${carrier} · ${tracking}`,
         href: `/account/orders/${orderId}`,
       });
+      const buyerEmail = await getUserEmail(order.buyer_id);
+      if (buyerEmail) {
+        await emailOrderShipped({
+          to: buyerEmail,
+          productTitle,
+          carrier,
+          tracking,
+          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+        });
+      }
     }
 
     revalidatePath(`/account/orders/${orderId}`);
@@ -386,13 +429,23 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
     const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
     const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
+      const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
       await supabase.from("notifications").insert({
         user_id: order.seller_id,
         type: "payout-sent",
         title: "Funds released",
-        body: `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} · $${(order.total_cents / 100).toFixed(2)} released to your pending balance.`,
+        body: `${productTitle} · $${(order.total_cents / 100).toFixed(2)} released to your pending balance.`,
         href: `/account/orders/${orderId}`,
       });
+      const sellerEmail = await getUserEmail(order.seller_id);
+      if (sellerEmail) {
+        await emailFundsReleased({
+          to: sellerEmail,
+          productTitle,
+          amountDollars: order.total_cents / 100,
+          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+        });
+      }
     }
 
     revalidatePath(`/account/orders/${orderId}`);
