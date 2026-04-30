@@ -37,7 +37,12 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "shipping-times",
         title: "How long does shipping take?",
-        body: "Sellers have 2 business days to ship after the order is placed. Most boxes arrive within 3-7 days depending on carrier and location. You'll get tracking updates in your order detail page.",
+        body: "Sellers have 2 business days to ship after payment clears. Most boxes arrive within 3-7 days depending on carrier and location. You'll get a notification with the tracking number when the seller ships, and another when the carrier marks it delivered. Once delivered, you have 2 days to confirm or dispute before funds auto-release to the seller.",
+      },
+      {
+        slug: "auto-release",
+        title: "What happens if I don't confirm delivery?",
+        body: "If the package is marked delivered and you take no action, funds auto-release to the seller after 2 days. This protects sellers from buyers who never confirm but received the box fine. If something IS wrong, just open a dispute before the 2 days are up — funds stay held until WaxDepot Support resolves it.",
       },
     ],
   },
@@ -55,7 +60,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "get-paid",
         title: "When do I get paid?",
-        body: "Payouts are weekly via ACH every Friday. After a buyer confirms delivery, the funds move to your pending balance. The next Friday, all released sales for the week are bundled into a single ACH transfer that lands in your bank by the next business day.",
+        body: "When the buyer confirms delivery (or the 2-day auto-release timer fires after the package is marked delivered), Stripe transfers the sale proceeds — minus your tier's flat seller fee — to your connected Stripe account. From there Stripe runs the ACH payout on your tier's cadence: Starter weekly (Friday), Pro twice weekly (Tue + Fri), Elite every 3 days. First ACH after onboarding can take 2-3 business days; subsequent payouts are next-business-day.",
       },
       {
         slug: "shipping-deadline",
@@ -78,7 +83,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "set-up-payouts",
         title: "How do I set up payouts?",
-        body: "Go to Sell → Set up payouts. You'll provide your legal name, DOB, last 4 of SSN, address, and bank routing/account numbers. Verification typically completes in minutes; first ACH may take 2-3 business days to clear.",
+        body: "Go to Sell → Set up payouts. We hand you off to Stripe's hosted onboarding (the same flow Lyft, DoorDash, Etsy and Substack sellers use). You'll verify your identity, link a US bank account, and confirm tax info. WaxDepot never sees your full SSN or bank credentials — Stripe handles all of that. Verification typically completes in 2-5 minutes; you'll see a green \"Stripe is connected\" card on /sell/payouts when you're ready.",
       },
       {
         slug: "1099-k",
@@ -88,7 +93,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "change-bank-account",
         title: "How do I change my bank account?",
-        body: "From your Payouts dashboard, click Manage payout settings. You'll need to re-verify identity and may need to wait 2-3 days for the new account to be confirmed before payouts resume.",
+        body: "From your Payouts dashboard (Sell → Set up payouts), click Open Stripe dashboard. You'll be sent into Stripe's hosted account-management UI where you can update your linked bank account. New accounts may need 2-3 business days to verify before payouts resume.",
       },
     ],
   },
@@ -101,7 +106,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "open-a-dispute",
         title: "How do I open a dispute?",
-        body: "On the order detail page (within 3 days of delivery), click Open a dispute. Pick a reason — box not sealed, wrong item, damaged in transit, never arrived, etc. — and add photos and a description. Funds stay held in escrow until the dispute is resolved.",
+        body: "On the order detail page, before the auto-release fires, click Open a dispute. Pick a reason (box not sealed, wrong item, damaged, never arrived, etc.), add a description (30+ characters), and pick your preferred outcome (refund, replacement, or partial refund). Funds stay held in escrow until WaxDepot Support resolves it. To submit photos as evidence, file the dispute first then email support@waxdepot.io with the dispute id.",
       },
       {
         slug: "dispute-process",
@@ -129,7 +134,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "two-factor",
         title: "Should I enable two-factor authentication?",
-        body: "Yes — strongly recommended, especially if you sell. Go to Account → Settings → Security → Enable 2FA. Use an authenticator app (Google Authenticator, 1Password, Authy) over SMS for better security.",
+        body: "Yes — strongly recommended, especially if you sell. 2FA is rolling out as part of the next account-security update; until then, use a unique strong password and enable 2FA on your email so account recovery is locked down.",
       },
       {
         slug: "delete-account",
