@@ -1,68 +1,174 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
+  ArrowDownToLine,
   ArrowLeft,
   ArrowUpRight,
   DollarSign,
-  Eye,
-  MapPin,
   Package,
+  ShieldCheck,
   TrendingDown,
   TrendingUp,
-  Users,
 } from "lucide-react";
-import { ProductImage } from "@/components/product-image";
+import { createClient } from "@/lib/supabase/server";
+import { stripe } from "@/lib/stripe";
+import { CURRENT_USER_TIER, TIER_FEE, TIER_PAYOUT_CADENCE, TIER_THRESHOLDS } from "@/lib/fees";
 import { SalesChart } from "@/components/analytics-chart";
-import { skus } from "@/lib/data";
-import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
+import { formatUSD, formatUSDFull } from "@/lib/utils";
 
-const TODAY = new Date(2026, 3, 28);
+const PERIOD_DAYS = 30;
 
-function buildSalesByDay() {
-  const days = 30;
-  const data: { date: string; revenue: number; orders: number }[] = [];
-  let s = 12345;
-  const rand = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(TODAY);
-    d.setDate(d.getDate() - i);
-    const orders = 1 + Math.floor(rand() * 5);
-    const revenue = orders * (180 + Math.floor(rand() * 600));
-    data.push({
-      date: d.toISOString().slice(0, 10),
-      orders,
-      revenue,
-    });
+type SkuJoin = {
+  id: string;
+  slug: string;
+  year: number;
+  brand: string;
+  product: string;
+  gradient_from: string | null;
+  gradient_to: string | null;
+};
+
+type OrderRow = {
+  id: string;
+  total_cents: number;
+  price_cents: number;
+  status: string;
+  placed_at: string;
+  released_at: string | null;
+  sku: SkuJoin | SkuJoin[] | null;
+};
+
+export default async function SellerAnalyticsPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/account/analytics");
+
+  // Pull profile for tier-progress + Stripe account id
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(
+      "stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled",
+    )
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const sinceIso = new Date(
+    Date.now() - PERIOD_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const prevSinceIso = new Date(
+    Date.now() - 2 * PERIOD_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const [{ data: ordersRaw }, { count: activeListingsCount }, reviewsRes] =
+    await Promise.all([
+      supabase
+        .from("orders")
+        .select(
+          "id, total_cents, price_cents, status, placed_at, released_at, sku:skus!orders_sku_id_fkey(id, slug, year, brand, product, gradient_from, gradient_to)",
+        )
+        .eq("seller_id", user.id)
+        .gte("placed_at", prevSinceIso)
+        .order("placed_at", { ascending: true }),
+      supabase
+        .from("listings")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", user.id)
+        .eq("status", "Active"),
+      supabase
+        .from("reviews")
+        .select("verdict")
+        .eq("seller_id", user.id)
+        .gte("created_at", sinceIso),
+    ]);
+
+  const orders = (ordersRaw ?? []) as unknown as OrderRow[];
+  const periodStart = new Date(sinceIso);
+
+  // Split by current period vs previous period for week-over-week deltas
+  const current = orders.filter((o) => new Date(o.placed_at) >= periodStart);
+  const previous = orders.filter((o) => new Date(o.placed_at) < periodStart);
+
+  const currentRevenue = current.reduce(
+    (s, o) => s + (countsAsPaid(o.status) ? o.total_cents : 0),
+    0,
+  );
+  const previousRevenue = previous.reduce(
+    (s, o) => s + (countsAsPaid(o.status) ? o.total_cents : 0),
+    0,
+  );
+  const orderCount = current.filter((o) => countsAsPaid(o.status)).length;
+  const previousOrderCount = previous.filter((o) => countsAsPaid(o.status)).length;
+  const avgOrderValue = orderCount > 0 ? currentRevenue / orderCount : 0;
+  const previousAvg = previousOrderCount > 0 ? previousRevenue / previousOrderCount : 0;
+
+  const revenueDelta =
+    previousRevenue > 0
+      ? ((currentRevenue - previousRevenue) / previousRevenue) * 100
+      : null;
+  const orderDelta =
+    previousOrderCount > 0
+      ? ((orderCount - previousOrderCount) / previousOrderCount) * 100
+      : null;
+  const avgDelta =
+    previousAvg > 0 ? ((avgOrderValue - previousAvg) / previousAvg) * 100 : null;
+
+  // Build the daily revenue series — every day in the window, even zeroes,
+  // so the chart shows a real timeline.
+  const series = buildDailySeries(current, PERIOD_DAYS);
+
+  // Top SKUs by revenue
+  const skuStats = new Map<string, { sku: SkuJoin; revenue: number; units: number }>();
+  for (const o of current) {
+    if (!countsAsPaid(o.status)) continue;
+    const sku = Array.isArray(o.sku) ? o.sku[0] : o.sku;
+    if (!sku) continue;
+    const acc = skuStats.get(sku.id) ?? { sku, revenue: 0, units: 0 };
+    acc.revenue += o.total_cents;
+    acc.units += 1;
+    skuStats.set(sku.id, acc);
   }
-  return data;
-}
+  const topSkus = Array.from(skuStats.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
 
-const topSelling = [
-  { skuId: "1", units: 8, revenue: 7920, conversionRate: 4.2 },
-  { skuId: "2", units: 5, revenue: 3600, conversionRate: 3.8 },
-  { skuId: "10", units: 12, revenue: 1320, conversionRate: 6.1 },
-  { skuId: "7", units: 4, revenue: 1980, conversionRate: 2.9 },
-  { skuId: "3", units: 3, revenue: 1230, conversionRate: 2.4 },
-];
+  // Pull Stripe pending balance for the seller's connected account
+  let pendingPayoutCents: number | null = null;
+  let availableCents: number | null = null;
+  if (stripe && profile?.stripe_account_id && profile.stripe_charges_enabled) {
+    try {
+      const balance = await stripe.balance.retrieve(
+        {},
+        { stripeAccount: profile.stripe_account_id },
+      );
+      pendingPayoutCents = balance.pending.reduce(
+        (s, b) => s + (b.currency === "usd" ? b.amount : 0),
+        0,
+      );
+      availableCents = balance.available.reduce(
+        (s, b) => s + (b.currency === "usd" ? b.amount : 0),
+        0,
+      );
+    } catch (e) {
+      console.error("Stripe balance lookup failed:", e);
+    }
+  }
 
-const topStates = [
-  { state: "California", orders: 23, revenue: 8420 },
-  { state: "Texas", orders: 18, revenue: 6155 },
-  { state: "New York", orders: 14, revenue: 5210 },
-  { state: "Florida", orders: 11, revenue: 3890 },
-  { state: "Illinois", orders: 9, revenue: 3120 },
-];
-
-export default function AnalyticsPage() {
-  const data = buildSalesByDay();
-  const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);
-  const totalOrders = data.reduce((s, d) => s + d.orders, 0);
-  const avgOrderValue = totalRevenue / totalOrders;
-  const last7 = data.slice(-7).reduce((s, d) => s + d.revenue, 0);
-  const prev7 = data.slice(-14, -7).reduce((s, d) => s + d.revenue, 0);
-  const wow = prev7 > 0 ? ((last7 - prev7) / prev7) * 100 : 0;
+  // Tier progress (rolling 30 days)
+  const reviews = (reviewsRes.data ?? []) as { verdict: string }[];
+  const positivePct =
+    reviews.length > 0
+      ? (reviews.filter((r) => r.verdict === "positive").length / reviews.length) * 100
+      : null;
+  const proSalesNeeded = Math.max(0, TIER_THRESHOLDS.Pro.sales - orderCount);
+  const eliteSalesNeeded = Math.max(0, TIER_THRESHOLDS.Elite.sales - orderCount);
+  const onTrackForPro =
+    orderCount >= TIER_THRESHOLDS.Pro.sales &&
+    (positivePct ?? 0) >= TIER_THRESHOLDS.Pro.positivePct;
+  const onTrackForElite =
+    orderCount >= TIER_THRESHOLDS.Elite.sales &&
+    (positivePct ?? 0) >= TIER_THRESHOLDS.Elite.positivePct;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -71,160 +177,228 @@ export default function AnalyticsPage() {
           <ArrowLeft size={14} /> Account
         </Link>
         <span>/</span>
-        <span className="text-white">Analytics</span>
+        <span className="text-white">Seller dashboard</span>
       </div>
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">Seller analytics</h1>
-          <p className="text-sm text-white/50">Last 30 days · across all your listings</p>
+          <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+            Sell side
+          </div>
+          <h1 className="font-display mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Seller dashboard
+          </h1>
+          <p className="text-sm text-white/50">
+            Last {PERIOD_DAYS} days · across all your listings
+          </p>
         </div>
-        <select className="rounded-md border border-white/15 bg-[#101012] px-3 py-1.5 text-sm font-semibold text-white/80">
-          <option>Last 30 days</option>
-          <option>Last 7 days</option>
-          <option>Last 90 days</option>
-          <option>Year to date</option>
-        </select>
       </div>
 
+      {/* KPI grid */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KPI
           icon={<DollarSign size={16} />}
           label="Revenue"
-          value={formatUSD(totalRevenue)}
-          delta={wow}
+          value={formatUSD(currentRevenue / 100)}
+          delta={revenueDelta}
           accent="emerald"
         />
         <KPI
           icon={<Package size={16} />}
           label="Orders"
-          value={String(totalOrders)}
-          delta={11.3}
+          value={String(orderCount)}
+          delta={orderDelta}
         />
         <KPI
           icon={<TrendingUp size={16} />}
           label="Avg order value"
-          value={formatUSD(avgOrderValue)}
-          delta={-2.1}
+          value={orderCount > 0 ? formatUSD(avgOrderValue / 100) : "—"}
+          delta={avgDelta}
         />
         <KPI
-          icon={<Eye size={16} />}
-          label="Listing views"
-          value="1,842"
-          delta={18.4}
+          icon={<Package size={16} />}
+          label="Active listings"
+          value={String(activeListingsCount ?? 0)}
         />
       </div>
 
+      {/* Pending payouts strip */}
+      {(pendingPayoutCents !== null || availableCents !== null) && (
+        <Link
+          href="/sell/payouts"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-700/40 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent px-5 py-4 transition hover:border-emerald-700/70"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
+              <ArrowDownToLine size={18} />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold tracking-wider text-emerald-300/80 uppercase">
+                Stripe balance
+              </div>
+              <div className="font-display text-base font-black text-white">
+                {pendingPayoutCents !== null
+                  ? `${formatUSDFull((pendingPayoutCents ?? 0) / 100)} pending`
+                  : "—"}
+                {availableCents !== null && (
+                  <span className="ml-2 text-sm font-semibold text-emerald-300">
+                    · {formatUSDFull((availableCents ?? 0) / 100)} ready
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-white/50">
+                {TIER_PAYOUT_CADENCE[CURRENT_USER_TIER]} · auto-released to your bank
+              </div>
+            </div>
+          </div>
+          <ArrowUpRight size={14} className="text-emerald-300" />
+        </Link>
+      )}
+
+      {/* Daily revenue chart */}
       <section className="mb-8 rounded-xl border border-white/10 bg-[#101012] p-5">
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h2 className="text-base font-bold text-white">Daily revenue</h2>
-            <p className="text-xs text-white/50">Total: {formatUSDFull(totalRevenue)} across {totalOrders} orders</p>
+            <h2 className="font-display text-base font-black text-white">Daily revenue</h2>
+            <p className="text-xs text-white/50">
+              {orderCount === 0
+                ? "No sales yet — list a box to get started"
+                : `${formatUSDFull(currentRevenue / 100)} across ${orderCount} ${orderCount === 1 ? "order" : "orders"}`}
+            </p>
           </div>
         </div>
-        <SalesChart data={data} />
+        <SalesChart
+          data={series.map((p) => ({
+            date: p.date,
+            revenue: p.revenueCents / 100,
+            orders: p.orders,
+          }))}
+        />
       </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Top SKUs */}
         <section className="rounded-xl border border-white/10 bg-[#101012] p-5">
           <div className="mb-4 flex items-end justify-between">
             <div>
-              <h2 className="text-base font-bold text-white">Top sellers</h2>
-              <p className="text-xs text-white/50">By revenue, last 30d</p>
+              <h2 className="font-display text-base font-black text-white">Top sellers</h2>
+              <p className="text-xs text-white/50">By revenue, last {PERIOD_DAYS}d</p>
             </div>
           </div>
-          <ul className="space-y-2">
-            {topSelling.map((row, i) => {
-              const sku = skus.find((s) => s.id === row.skuId)!;
-              return (
-                <li key={row.skuId} className="flex items-center gap-3">
+          {topSkus.length === 0 ? (
+            <div className="rounded-md border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/50">
+              No sold orders yet.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {topSkus.map((row, i) => (
+                <li key={row.sku.id} className="flex items-center gap-3">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs font-bold text-white/80">
                     {i + 1}
                   </div>
-                  <ProductImage sku={sku} size="sm" className="aspect-[4/5] w-9 shrink-0 rounded" showText={false} />
+                  <div
+                    className="flex h-9 w-7 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
+                    style={{
+                      background: `linear-gradient(135deg, ${row.sku.gradient_from ?? "#475569"}, ${row.sku.gradient_to ?? "#0f172a"})`,
+                    }}
+                  >
+                    {row.sku.brand.slice(0, 4).toUpperCase()}
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <Link href={`/product/${sku.slug}`} className="line-clamp-1 text-sm font-semibold text-white hover:text-amber-300">
-                      {formatSkuTitle(sku)}
+                    <Link
+                      href={`/product/${row.sku.slug}`}
+                      className="line-clamp-1 text-sm font-semibold text-white transition hover:text-amber-300"
+                    >
+                      {row.sku.year} {row.sku.brand} {row.sku.product}
                     </Link>
                     <div className="text-xs text-white/50">
-                      {row.units} sold · {row.conversionRate}% conversion
+                      {row.units} sold
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-sm font-bold text-white">{formatUSD(row.revenue)}</div>
+                    <div className="font-display text-sm font-black text-amber-400">
+                      {formatUSD(row.revenue / 100)}
+                    </div>
                     <div className="text-[10px] text-white/40">revenue</div>
                   </div>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </section>
 
+        {/* Tier progress */}
         <section className="rounded-xl border border-white/10 bg-[#101012] p-5">
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <h2 className="flex items-center gap-1.5 text-base font-bold text-white">
-                <MapPin size={14} className="text-white/40" />
-                Top states
-              </h2>
-              <p className="text-xs text-white/50">Where your buyers ship to</p>
-            </div>
+          <div className="mb-4">
+            <h2 className="font-display text-base font-black text-white">Tier progress</h2>
+            <p className="text-xs text-white/50">
+              You&apos;re on{" "}
+              <strong className="text-amber-300">{CURRENT_USER_TIER}</strong> ·{" "}
+              {(TIER_FEE[CURRENT_USER_TIER] * 100).toFixed(0)}% seller fee
+            </p>
           </div>
-          <ul className="space-y-3">
-            {topStates.map((row) => {
-              const max = topStates[0].orders;
-              const pct = (row.orders / max) * 100;
-              return (
-                <li key={row.state}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                    <span className="font-semibold text-white/80">{row.state}</span>
-                    <span className="text-white/50">
-                      {row.orders} orders · <span className="font-semibold text-white">{formatUSD(row.revenue)}</span>
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-white/5">
-                    <div className="h-full bg-indigo-500" style={{ width: `${pct}%` }} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-4 text-sm">
+            <TierRow
+              tier="Pro"
+              fee={TIER_FEE.Pro}
+              cadence={TIER_PAYOUT_CADENCE.Pro}
+              progress={Math.min(orderCount / TIER_THRESHOLDS.Pro.sales, 1)}
+              progressLabel={
+                onTrackForPro
+                  ? "Eligible — kicks in next month"
+                  : `${proSalesNeeded} more sales · ${(positivePct ?? 0).toFixed(1)}%/${TIER_THRESHOLDS.Pro.positivePct}% positive`
+              }
+              done={onTrackForPro}
+            />
+            <TierRow
+              tier="Elite"
+              fee={TIER_FEE.Elite}
+              cadence={TIER_PAYOUT_CADENCE.Elite}
+              progress={Math.min(orderCount / TIER_THRESHOLDS.Elite.sales, 1)}
+              progressLabel={
+                onTrackForElite
+                  ? "Eligible — kicks in next month"
+                  : `${eliteSalesNeeded} more sales · ${(positivePct ?? 0).toFixed(1)}%/${TIER_THRESHOLDS.Elite.positivePct}% positive`
+              }
+              done={onTrackForElite}
+            />
+          </div>
+          <div className="mt-4 flex items-start gap-2 rounded-md border border-white/10 bg-white/[0.02] p-3 text-[11px] text-white/60">
+            <ShieldCheck size={12} className="mt-0.5 text-emerald-400" />
+            <span>
+              Tier reviews run on the rolling 30-day window. We absorb Stripe&apos;s
+              2.9% + 30¢ inside the seller fee — no separate processing line.
+            </span>
+          </div>
         </section>
       </div>
-
-      <section className="mt-6 rounded-xl border border-white/10 bg-[#101012] p-5">
-        <div className="mb-4 flex items-end justify-between">
-          <div>
-            <h2 className="flex items-center gap-1.5 text-base font-bold text-white">
-              <Users size={14} className="text-white/40" />
-              Buyer breakdown
-            </h2>
-            <p className="text-xs text-white/50">Repeat vs new customers</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 divide-x divide-white/10 rounded-lg border border-white/10 bg-white/[0.02]">
-          <BuyerStat label="New buyers" value="42" sub="of 70 orders" pct={60} tone="indigo" />
-          <BuyerStat label="Returning" value="28" sub="40% loyal" pct={40} tone="emerald" />
-          <BuyerStat label="Top buyer" value="ripper2024" sub="6 orders, $2,240" pct={null} tone="amber" />
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-xl border border-emerald-700/40 bg-emerald-500/10 p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
-            <ArrowUpRight size={16} />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-bold text-emerald-100">Tips to grow</h3>
-            <ul className="mt-1.5 space-y-1 text-xs text-emerald-200">
-              <li>· Your conversion is highest on Topps Series 1 — consider listing the Update Series too.</li>
-              <li>· 60% of your buyers are first-timers — a thank-you note in the package boosts return rate by ~22% on similar sellers.</li>
-              <li>· Avg shipping speed score is 4.2/5 — same-day shipping pushes you to 4.8+ and unlocks Verified Seller badge.</li>
-            </ul>
-          </div>
-        </div>
-      </section>
     </div>
   );
+}
+
+function countsAsPaid(status: string) {
+  return ["Charged", "InEscrow", "Shipped", "Delivered", "Released", "Completed"].includes(status);
+}
+
+function buildDailySeries(orders: OrderRow[], days: number) {
+  const buckets = new Map<string, { revenueCents: number; orders: number }>();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { revenueCents: 0, orders: 0 });
+  }
+  for (const o of orders) {
+    if (!countsAsPaid(o.status)) continue;
+    const key = o.placed_at.slice(0, 10);
+    const acc = buckets.get(key);
+    if (!acc) continue;
+    acc.revenueCents += o.total_cents;
+    acc.orders += 1;
+  }
+  return Array.from(buckets.entries()).map(([date, v]) => ({
+    date,
+    revenueCents: v.revenueCents,
+    orders: v.orders,
+  }));
 }
 
 function KPI({
@@ -237,65 +411,76 @@ function KPI({
   icon: React.ReactNode;
   label: string;
   value: string;
-  delta?: number;
+  delta?: number | null;
   accent?: "emerald";
 }) {
-  const positive = delta !== undefined && delta >= 0;
+  const tone = accent === "emerald" ? "text-emerald-300" : "text-white";
   return (
     <div className="rounded-xl border border-white/10 bg-[#101012] p-4">
-      <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-white/50 uppercase">
-        <span className={accent === "emerald" ? "text-emerald-400" : "text-white/40"}>{icon}</span>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.15em] text-white/50 uppercase">
+        <span className="text-white/40">{icon}</span>
         {label}
       </div>
-      <div className="mt-1 text-2xl font-bold text-white">{value}</div>
-      {delta !== undefined && (
+      <div className={`font-display mt-1.5 text-2xl font-black tracking-tight ${tone}`}>
+        {value}
+      </div>
+      {delta !== undefined && delta !== null && (
         <div
-          className={`mt-1 inline-flex items-center gap-0.5 text-xs font-semibold ${
-            positive ? "text-emerald-300" : "text-rose-300"
+          className={`mt-1 inline-flex items-center gap-0.5 rounded text-[11px] font-semibold ${
+            delta >= 0 ? "text-emerald-300" : "text-rose-300"
           }`}
         >
-          {positive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-          {positive ? "+" : ""}
-          {delta.toFixed(1)}% vs prior 7d
+          {delta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+          {delta >= 0 ? "+" : ""}
+          {delta.toFixed(1)}%
         </div>
+      )}
+      {(delta === undefined || delta === null) && (
+        <div className="mt-1 text-[11px] text-white/30">No prior data</div>
       )}
     </div>
   );
 }
 
-function BuyerStat({
-  label,
-  value,
-  sub,
-  pct,
-  tone,
+function TierRow({
+  tier,
+  fee,
+  cadence,
+  progress,
+  progressLabel,
+  done,
 }: {
-  label: string;
-  value: string;
-  sub: string;
-  pct: number | null;
-  tone: "indigo" | "emerald" | "amber";
+  tier: string;
+  fee: number;
+  cadence: string;
+  progress: number;
+  progressLabel: string;
+  done: boolean;
 }) {
-  const toneCfg = {
-    indigo: "text-amber-400",
-    emerald: "text-emerald-300",
-    amber: "text-amber-300",
-  }[tone];
   return (
-    <div className="px-4 py-3">
-      <div className="text-xs font-semibold tracking-wider text-white/50 uppercase">{label}</div>
-      <div className={`mt-1 text-xl font-bold ${toneCfg}`}>{value}</div>
-      <div className="text-xs text-white/50">{sub}</div>
-      {pct !== null && (
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200">
-          <div
-            className={`h-full ${
-              tone === "indigo" ? "bg-indigo-500" : tone === "emerald" ? "bg-emerald-500" : "bg-amber-500"
-            }`}
-            style={{ width: `${pct}%` }}
-          />
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <div>
+          <span className="font-display text-base font-black text-white">{tier}</span>
+          <span className="ml-2 text-xs text-white/50">
+            {(fee * 100).toFixed(0)}% fee · {cadence}
+          </span>
         </div>
-      )}
+        {done && (
+          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300 uppercase">
+            Eligible
+          </span>
+        )}
+      </div>
+      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+        <div
+          className={`h-full rounded-full ${
+            done ? "bg-emerald-400" : "bg-amber-400"
+          }`}
+          style={{ width: `${Math.round(progress * 100)}%` }}
+        />
+      </div>
+      <div className="mt-1 text-[11px] text-white/50">{progressLabel}</div>
     </div>
   );
 }

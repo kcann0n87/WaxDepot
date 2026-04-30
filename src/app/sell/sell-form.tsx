@@ -108,6 +108,42 @@ export function SellForm({
 
       <Stepper step={step} />
 
+      {/* Persistent banner across steps 2-4 — makes it impossible to forget
+          which SKU you're actually listing. Click "Change" to reset. */}
+      {step > 1 && sku && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-700/40 bg-gradient-to-r from-amber-500/10 to-transparent p-4">
+          <div
+            className="flex h-14 w-12 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
+            style={{
+              background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
+            }}
+          >
+            {sku.brand.slice(0, 4).toUpperCase()}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-semibold tracking-[0.18em] text-amber-300/80 uppercase">
+              You&apos;re listing
+            </div>
+            <div className="font-display line-clamp-2 text-base font-black text-white">
+              {formatSkuTitle(sku)}
+            </div>
+            <div className="text-xs text-white/50">{sku.sport} · Factory Sealed</div>
+          </div>
+          {step < 4 && (
+            <button
+              onClick={() => {
+                setStep(1);
+                setSkuId(null);
+                setAskPrice("");
+              }}
+              className="shrink-0 rounded-md border border-white/15 bg-[#101012] px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:border-amber-400/40 hover:text-amber-300"
+            >
+              Change
+            </button>
+          )}
+        </div>
+      )}
+
       {step === 1 && (
         <Card title="1. Find your product" subtitle="Search by year, brand, sport, or set">
           <div className="relative">
