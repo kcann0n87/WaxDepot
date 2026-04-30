@@ -64,16 +64,29 @@ export default function ComingSoonPage() {
           />
         </div>
 
-        <div className="mt-14 flex flex-col items-center gap-2 text-center">
+        <div className="mt-14 flex flex-col items-center gap-3 text-center">
           <div className="text-[10px] font-semibold tracking-[0.25em] text-white/40 uppercase">
-            Already invited?
+            Or skip the wait
           </div>
-          <Link
-            href="/login"
-            className="text-sm font-semibold text-amber-300 transition hover:text-amber-200"
-          >
-            Sign in →
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href="/signup"
+              className="inline-flex items-center rounded-md bg-white/[0.04] px-4 py-2 text-sm font-bold text-white transition hover:bg-white/[0.08]"
+            >
+              Sign up early
+            </Link>
+            <span className="text-xs text-white/30">·</span>
+            <Link
+              href="/login"
+              className="text-sm font-semibold text-amber-300 transition hover:text-amber-200"
+            >
+              Sign in
+            </Link>
+          </div>
+          <div className="mt-1 max-w-sm text-[11px] leading-relaxed text-white/40">
+            We&apos;re onboarding sellers and buyers manually during beta.
+            Sign up to get full access right now while we tune the marketplace.
+          </div>
         </div>
 
         <div className="mt-10 flex justify-center gap-5 text-xs text-white/30">
