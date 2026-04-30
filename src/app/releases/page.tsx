@@ -4,9 +4,10 @@ import { ProductImage } from "@/components/product-image";
 import { skus, lastSale, lowestAsk } from "@/lib/data";
 import { formatSkuTitle, formatUSD } from "@/lib/utils";
 
-const TODAY = new Date(2026, 3, 28);
-
 export default function ReleasesPage() {
+  // Real "today" — used to be pinned to a demo date.
+  const TODAY = new Date();
+  TODAY.setHours(0, 0, 0, 0);
   const dated = skus
     .map((s) => {
       const [y, m, d] = s.releaseDate.split("-").map(Number);

@@ -24,17 +24,22 @@ export function formatSkuTitle(sku: { year: number; brand: string; set: string; 
   return `${formatSeasonYear(sku.year)} ${brandSet} ${sku.product}`;
 }
 
-const TODAY_MS = new Date(2026, 3, 28).getTime();
+// Real time, not a pinned demo date. Earlier iterations froze "today" to
+// stabilize seed data; with a real catalog + real launch we want presale
+// banners to reflect actual time-to-release.
+function todayMs() {
+  return Date.now();
+}
 
 export function isPresale(releaseDate: string) {
   const [y, m, d] = releaseDate.split("-").map(Number);
-  return new Date(y, m - 1, d).getTime() > TODAY_MS;
+  return new Date(y, m - 1, d).getTime() > todayMs();
 }
 
 export function daysUntilRelease(releaseDate: string) {
   const [y, m, d] = releaseDate.split("-").map(Number);
   const target = new Date(y, m - 1, d).getTime();
-  return Math.ceil((target - TODAY_MS) / 86400000);
+  return Math.ceil((target - todayMs()) / 86400000);
 }
 
 export function formatReleaseDateLong(releaseDate: string) {

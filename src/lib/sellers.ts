@@ -333,7 +333,9 @@ export type FeedbackStats = {
   subAverages: SubRatings;
 };
 
-const todayMs = new Date(2026, 3, 28, 12, 0).getTime();
+// "Today" — was pinned to a demo date; now reads real wall-clock time
+// so feedback rolling-windows reflect actual recency.
+const todayMs = () => Date.now();
 
 function tsToMs(ts: string) {
   const [date, time] = ts.split(" ");
@@ -345,7 +347,7 @@ function tsToMs(ts: string) {
 export function feedbackStatsForSeller(username: string, windowDays?: number): FeedbackStats {
   let list = reviewsForSeller(username);
   if (windowDays !== undefined) {
-    const cutoff = todayMs - windowDays * 86400000;
+    const cutoff = todayMs() - windowDays * 86400000;
     list = list.filter((r) => tsToMs(r.ts) >= cutoff);
   }
   const total = list.length;
