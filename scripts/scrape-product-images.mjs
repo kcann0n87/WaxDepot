@@ -156,6 +156,69 @@ async function searchDuckDuckGoImages(query) {
   return extractImageUrls(html);
 }
 
+/**
+ * StockX has a deterministic image-CDN URL pattern:
+ *   https://images.stockx.com/images/<Title-Case-Slug>.jpg
+ *
+ * The slug is similar to ours but Title-Cased and with a few quirks:
+ *   - "Allen and Ginter" → "Allen Ginter" (drops "and")
+ *   - "TCG" → dropped
+ *   - "FOTL" stays
+ *   - Year prefixes like "2025-26" sometimes become "2025-26", sometimes "2026"
+ *
+ * We try several candidate URLs derived from the slug and return whichever
+ * 200s. No HTML scraping needed — direct CDN HEAD checks.
+ */
+async function tryStockXDirect(slug) {
+  const tryGet = async (key) => {
+    const url = `https://images.stockx.com/images/${key}.jpg`;
+    try {
+      const res = await fetch(url, {
+        method: "HEAD",
+        headers: { "User-Agent": UA, Referer: "https://stockx.com/" },
+      });
+      return res.ok ? url : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Build candidate keys.
+  const titleCase = (s) =>
+    s
+      .split("-")
+      .map((w) => w[0]?.toUpperCase() + w.slice(1).toLowerCase())
+      .join("-");
+
+  const variants = new Set();
+  variants.add(titleCase(slug));
+  variants.add(titleCase(slug.replace(/-and-/g, "-"))); // drop "and"
+  variants.add(titleCase(slug.replace(/-tcg-/g, "-"))); // drop "tcg"
+  variants.add(titleCase(slug.replace(/^(\d{4})-\d{2}-/, "$1-"))); // 2025-26-... → 2025-...
+  variants.add(
+    titleCase(slug.replace(/^(\d{4})-(\d{2})-/, (_, a, b) => `20${b}-`)),
+  ); // 2025-26-... → 2026-...
+  variants.add(
+    titleCase(slug.replace(/^(\d{4})-(\d{2})-/, (_, a, b) => `${a}-${b}-`).replace(/-and-/g, "-")),
+  );
+  // "topps-chrome-update" on StockX is "topps-chrome-updated-series"
+  if (slug.includes("topps-chrome-update")) {
+    variants.add(titleCase(slug.replace("topps-chrome-update", "topps-chrome-updated-series")));
+  }
+  // "hobby-jumbo-box" sometimes is "hobby-jumbo-box" or just "jumbo-box"
+  if (slug.includes("-jumbo-box")) {
+    const j = slug.replace("-jumbo-box", "-hobby-jumbo-box");
+    variants.add(titleCase(j));
+    variants.add(titleCase(j.replace(/-and-/g, "-")));
+  }
+
+  for (const v of variants) {
+    const url = await tryGet(v);
+    if (url) return url;
+  }
+  return null;
+}
+
 async function searchEbayListings(query) {
   // eBay's product listing pages have very high-quality seller-uploaded
   // photos hosted at i.ebayimg.com. Sellers always include the product
@@ -336,14 +399,58 @@ function urlMatchesProduct(url, slug) {
   return true;
 }
 
+/**
+ * Score a candidate URL for "looks like a box photo, not a card-spread press
+ * shot." Card-spread URLs tend to live under paths like /first-buzz/,
+ * /checklist/, /press-kit/, /preview/ or contain words like "card" / "auto"
+ * / "rookie" without "box". Box photos have URLs like
+ * /products/2025-topps-cosmic-chrome-hobby-box.jpg or
+ * /images/cosmic-chrome-box-2025.jpg.
+ *
+ * Higher score → more likely a box photo. Returns 0..3.
+ */
+function looksLikeBoxScore(url) {
+  const lower = decodeURIComponent(url).toLowerCase();
+  let score = 0;
+  if (lower.includes("hobby-box") || lower.includes("hobby_box")) score += 2;
+  if (lower.includes("jumbo-box") || lower.includes("jumbo_box")) score += 2;
+  if (lower.includes("booster-box") || lower.includes("booster_box")) score += 2;
+  if (/[/_-]box[._-]/.test(lower) || lower.endsWith("-box.jpg") || lower.endsWith("_box.jpg")) score += 1;
+  // Penalties for press/marketing/checklist URLs.
+  if (lower.includes("first-buzz") || lower.includes("firstbuzz")) score -= 2;
+  if (lower.includes("checklist")) score -= 2;
+  if (lower.includes("preview")) score -= 1;
+  if (lower.includes("press-kit") || lower.includes("presskit")) score -= 1;
+  if (lower.includes("autograph-card") || lower.includes("auto-card")) score -= 2;
+  if (lower.includes("rookie-card") || lower.includes("rookie_card")) score -= 1;
+  return Math.max(0, score);
+}
+
 async function processSku(s) {
   const dest = resolve(PRODUCTS_DIR, `${s.slug}.jpg`);
   if (existsSync(dest) && statSync(dest).size > 5000) {
     console.log(`\n→ ${s.slug}\n  (already on disk, skipping)`);
     return true;
   }
-  const query = richQuery(s);
   console.log(`\n→ ${s.slug}`);
+
+  // FIRST: try StockX direct. Their CDN has a clean Title-Case-Slug URL
+  // pattern and the photos are professional product shots, exactly what we
+  // want. No false-positives like card spreads from press kits.
+  const stockxUrl = await tryStockXDirect(s.slug);
+  if (stockxUrl) {
+    try {
+      const size = await downloadImage(stockxUrl, dest, "https://stockx.com/");
+      console.log(`  ✓ ${(size / 1024).toFixed(0)} KB ← stockx (direct)`);
+      return true;
+    } catch (e) {
+      console.log(`  stockx direct failed: ${e.message}`);
+    }
+  } else {
+    console.log("  stockx: no direct match");
+  }
+
+  const query = richQuery(s);
   console.log(`  query: ${query}`);
 
   const sources = [
@@ -365,13 +472,18 @@ async function processSku(s) {
     }
     const matchesProduct = urls.filter((u) => urlMatchesProduct(u, s.slug));
     const allowed = matchesProduct.filter(isAllowed);
+    // Sort by box-likeness score so we prefer URLs that look like a product
+    // box photo over press-kit card spreads.
+    const sorted = [...matchesProduct].sort(
+      (a, b) => looksLikeBoxScore(b) - looksLikeBoxScore(a),
+    );
+    const allowedSorted = sorted.filter((u) => allowed.includes(u));
+    const ordered = [...allowedSorted, ...sorted.filter((u) => !allowed.includes(u))];
+
     console.log(
-      `  ${name}: ${urls.length} raw, ${matchesProduct.length} match product, ${allowed.length} from allowed hosts`,
+      `  ${name}: ${urls.length} raw, ${matchesProduct.length} match product, ${allowed.length} from allowed hosts (top score: ${looksLikeBoxScore(ordered[0] || "")})`,
     );
 
-    // Priority: matching+allowed > matching > nothing. Skip non-matching
-    // entirely — accepting them is what produced wrong images last time.
-    const ordered = [...allowed, ...matchesProduct.filter((u) => !allowed.includes(u))];
     for (const url of ordered.slice(0, 8)) {
       try {
         const size = await downloadImage(url, dest);
