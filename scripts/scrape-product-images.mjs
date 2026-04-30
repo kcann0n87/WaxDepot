@@ -156,6 +156,25 @@ async function searchDuckDuckGoImages(query) {
   return extractImageUrls(html);
 }
 
+async function searchEbayListings(query) {
+  // eBay's product listing pages have very high-quality seller-uploaded
+  // photos hosted at i.ebayimg.com. Sellers always include the product
+  // name in the listing title, so eBay's search has tight relevance —
+  // exactly what we want for the "is this the right product?" check.
+  const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(
+    query,
+  )}&_sacat=0&LH_BIN=1`;
+  const html = await fetchHtml(url, { Referer: "https://www.ebay.com/" });
+  // eBay tile images live in `s-l<size>.jpg` format. Pull every i.ebayimg URL.
+  const out = new Set();
+  const re = /https?:\/\/i\.ebayimg\.com\/[^\s"'<>)]+\.(?:jpe?g|png|webp)(?:\?[^\s"'<>)]*)?/gi;
+  for (const m of html.match(re) ?? []) {
+    // Bump up the size suffix to s-l1600 for max resolution.
+    out.add(m.replace(/s-l\d+\.(jpe?g|png|webp)/i, "s-l1600.$1"));
+  }
+  return [...out];
+}
+
 async function searchGoogleImages(query) {
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&tbm=isch&hl=en`;
   const html = await fetchHtml(url);
@@ -187,9 +206,134 @@ async function downloadImage(url, dest, referer) {
 }
 
 function richQuery(s) {
-  // Slug already has the canonical name. Use it as a phrase + add "sealed".
+  // Slug as a quoted phrase forces the search engine to keep the product
+  // name intact instead of returning related products. Without quotes,
+  // "panini prizm basketball" matched WNBA Prizm; with quotes, only the
+  // exact NBA SKU matches.
   const fromSlug = s.slug.replace(/-/g, " ");
-  return `${fromSlug} sealed`;
+  return `"${fromSlug}"`;
+}
+
+/**
+ * Keywords from the slug that MUST appear in a candidate URL's path/file.
+ * Filters out related-but-wrong products. e.g. for slug
+ * "2024-25-panini-spectra-basketball-hobby-box", we require the URL to
+ * contain "spectra" so we don't accept a Select or Prizm result.
+ *
+ * Hand-pick the distinctive words per product line.
+ */
+function distinctiveTokens(slug) {
+  // Strip filler words; keep brand/set/variant + product type.
+  const tokens = slug
+    .toLowerCase()
+    .replace(/^\d{4}(-\d{2})?-/, "") // drop leading year
+    .split("-")
+    .filter((t) => !["hobby", "box", "the", "of", "and"].includes(t));
+  return tokens;
+}
+
+/** Tokens that MUST appear in a candidate URL — sport + year + variant. */
+function requiredTokensFor(slug) {
+  const lower = slug.toLowerCase();
+  const required = [];
+  // Year — match the leading 4-digit year as either "2025" or "2025-26"-style.
+  const yearMatch = lower.match(/^(\d{4})(?:-(\d{2}))?/);
+  if (yearMatch) {
+    const y = yearMatch[1];
+    // We accept "2025" alone (covers all "2025/26" variants) so this stays loose.
+    required.push(y);
+  }
+  // Sport — must appear since search engines confuse Baseball/Basketball/etc.
+  if (lower.includes("basketball")) required.push("basketball");
+  else if (lower.includes("baseball")) required.push("baseball");
+  else if (lower.includes("football")) required.push("football");
+  else if (lower.includes("hockey")) required.push("hockey");
+  else if (lower.includes("pokemon")) required.push("pokemon");
+  // Variant / set name — same logic as before, distilled.
+  const setNames = [
+    "prizm",
+    "donruss",
+    "contenders",
+    "immaculate",
+    "spectra",
+    "platinum",
+    "chrome",
+    "update",
+    "bowman",
+    "topps",
+    "panini",
+    "sp-authentic",
+    "sp",
+    "monopoly",
+    "fotl",
+    "journey-together",
+    "journey",
+    "destined-rivals",
+    "destined",
+    "rivals",
+  ];
+  for (const n of setNames) {
+    if (lower.includes(n) && !required.includes(n)) {
+      // sp-authentic is more specific than sp; only require the longest match.
+      if (n === "sp" && lower.includes("sp-authentic")) continue;
+      required.push(n);
+    }
+  }
+  return required;
+}
+
+/** Tokens that must NOT appear — wrong-product-type disambiguators. */
+function negativeTokensFor(slug) {
+  const lower = slug.toLowerCase();
+  const out = [
+    // Generic placeholder pages that show "anticipated release" cards instead
+    // of a real box photo.
+    "anticipated",
+    "coming-soon",
+    "presale-graphic",
+  ];
+  // Slug is a hobby BOX → reject single-pack listings.
+  if (lower.includes("box")) {
+    out.push(
+      "booster-pack",
+      "booster_pack",
+      "single-pack",
+      "1-pack",
+      "additional-game-cards",
+    );
+  }
+  // NBA basketball slugs that aren't WNBA → reject WNBA-named URLs.
+  if (lower.includes("basketball") && !lower.includes("wnba")) out.push("wnba");
+  // NFL football slugs → reject PFL (mixed martial arts) Contenders.
+  if (lower.includes("-football-")) out.push("pfl-", "-pfl", "/pfl");
+  // Booster Box (Pokemon) → reject Elite Trainer Box (ETB) URLs.
+  if (lower.includes("booster-box")) {
+    out.push("elite-trainer-box", "elite_trainer_box", "elitetrainerbox", "etb-", "-etb");
+  }
+  // Hobby Box → reject blaster, mega, value, retail.
+  if (lower.includes("hobby-box") && !lower.includes("jumbo")) {
+    out.push("blaster", "mega-box", "megabox", "retail-box", "value-box", "jumbo-box");
+  }
+  // Authentic-named products → don't accept "game-used" variants.
+  if (lower.includes("sp-authentic")) out.push("game-used", "gameused");
+  if (lower.includes("-sp-hockey-")) out.push("authentic", "game-used");
+  // Update series → must say "update", reject Series-1/Series-2 pure URLs.
+  if (lower.includes("topps-update") || lower.includes("topps-chrome-update")) {
+    out.push("series-1", "series-2", "series1", "series2");
+    if (lower.includes("topps-chrome-update")) out.push("sapphire-edition", "sapphire_edition");
+  }
+  return out;
+}
+
+function urlMatchesProduct(url, slug) {
+  const lower = decodeURIComponent(url).toLowerCase();
+  // Every required token must appear (year + sport + variant).
+  const required = requiredTokensFor(slug);
+  if (!required.every((t) => lower.includes(t))) return false;
+  // No negative tokens.
+  const negatives = negativeTokensFor(slug);
+  if (negatives.some((n) => lower.includes(n))) return false;
+  return true;
 }
 
 async function processSku(s) {
@@ -203,6 +347,9 @@ async function processSku(s) {
   console.log(`  query: ${query}`);
 
   const sources = [
+    // eBay first — highest signal-to-noise because seller titles are
+    // strict about product names, and image quality is professional.
+    ["ebay", searchEbayListings],
     ["bing", searchBingImages],
     ["google", searchGoogleImages],
     ["ddg", searchDuckDuckGoImages],
@@ -216,13 +363,15 @@ async function processSku(s) {
       console.log(`  ${name}: search failed (${e.message})`);
       continue;
     }
-    const allowed = urls.filter(isAllowed);
+    const matchesProduct = urls.filter((u) => urlMatchesProduct(u, s.slug));
+    const allowed = matchesProduct.filter(isAllowed);
     console.log(
-      `  ${name}: ${urls.length} hit(s), ${allowed.length} from allowed hosts`,
+      `  ${name}: ${urls.length} raw, ${matchesProduct.length} match product, ${allowed.length} from allowed hosts`,
     );
 
-    // Try allowed hosts first, then any image as fallback.
-    const ordered = [...allowed, ...urls.filter((u) => !allowed.includes(u))];
+    // Priority: matching+allowed > matching > nothing. Skip non-matching
+    // entirely — accepting them is what produced wrong images last time.
+    const ordered = [...allowed, ...matchesProduct.filter((u) => !allowed.includes(u))];
     for (const url of ordered.slice(0, 8)) {
       try {
         const size = await downloadImage(url, dest);
