@@ -3,45 +3,113 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
-  Clock,
   MapPin,
   MessageCircle,
   Package,
   ShieldCheck,
-  Star,
 } from "lucide-react";
-import { FeedbackSummary } from "@/components/feedback-summary";
-import { FollowButton } from "@/components/follow-button";
+import { createClient } from "@/lib/supabase/server";
 import { ProductImage } from "@/components/product-image";
-import { listingsForSku, skus } from "@/lib/data";
-import { findSeller, reviewsForSeller, sellers, type Verdict } from "@/lib/sellers";
-import { formatSkuTitle, formatUSDFull } from "@/lib/utils";
+import { FollowButton } from "@/components/follow-button";
+import { formatUSDFull } from "@/lib/utils";
+import type { Sport, Sku } from "@/lib/data";
+
+type SkuJoin = {
+  id: string;
+  slug: string;
+  year: number;
+  brand: string;
+  sport: Sport;
+  product: string;
+  set_name: string;
+  release_date: string;
+  description: string | null;
+  image_url: string | null;
+  gradient_from: string | null;
+  gradient_to: string | null;
+};
+
+type ListingRow = {
+  id: string;
+  price_cents: number;
+  shipping_cents: number;
+  quantity: number;
+  status: string;
+  created_at: string;
+  sku: SkuJoin | SkuJoin[] | null;
+};
+
+function rowToSku(row: SkuJoin): Sku {
+  return {
+    id: row.id,
+    slug: row.slug,
+    year: row.year,
+    brand: row.brand,
+    sport: row.sport,
+    set: row.set_name,
+    product: row.product,
+    releaseDate: row.release_date,
+    description: row.description ?? "",
+    imageUrl: row.image_url ?? undefined,
+    gradient: [row.gradient_from ?? "#475569", row.gradient_to ?? "#0f172a"],
+  };
+}
 
 export default async function SellerStorefrontPage({
   params,
 }: {
   params: Promise<{ username: string }>;
 }) {
-  const { username } = await params;
-  const seller = findSeller(username);
-  if (!seller) notFound();
+  const { username: rawUsername } = await params;
+  const username = rawUsername.toLowerCase();
 
-  const reviews = reviewsForSeller(username);
+  const supabase = await createClient();
 
-  // Build a list of products this seller has any listings for
-  const sellerListings = skus
-    .map((sku) => {
-      const ls = listingsForSku(sku.id).filter((l) => l.seller === username);
-      if (ls.length === 0) return null;
-      return { sku, listing: ls[0], stock: ls.length };
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, username, display_name, bio, location, avatar_color, is_verified, is_seller, created_at")
+    .eq("username", username)
+    .maybeSingle();
+  if (!profile) notFound();
+
+  const [{ data: listings }, salesCountRes] = await Promise.all([
+    supabase
+      .from("listings")
+      .select(
+        "id, price_cents, shipping_cents, quantity, status, created_at, sku:skus!listings_sku_id_fkey(id, slug, year, brand, sport, product, set_name, release_date, description, image_url, gradient_from, gradient_to)",
+      )
+      .eq("seller_id", profile.id)
+      .eq("status", "Active")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_id", profile.id)
+      .in("status", ["Delivered", "Released", "Completed"]),
+  ]);
+
+  const totalSales = salesCountRes.count ?? 0;
+
+  const sellerListings = ((listings ?? []) as unknown as ListingRow[])
+    .map((row) => {
+      const skuRel = Array.isArray(row.sku) ? row.sku[0] : row.sku;
+      if (!skuRel) return null;
+      return {
+        sku: rowToSku(skuRel),
+        priceCents: row.price_cents,
+        shippingCents: row.shipping_cents,
+        quantity: row.quantity,
+      };
     })
-    .filter((x): x is { sku: typeof skus[number]; listing: ReturnType<typeof listingsForSku>[number]; stock: number } => x !== null);
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const joinedDate = new Date(profile.created_at);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <Link
         href="/"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm text-white/50 transition hover:text-white"
       >
         <ArrowLeft size={14} /> Back to marketplace
       </Link>
@@ -50,18 +118,18 @@ export default async function SellerStorefrontPage({
         <div
           className="h-32 md:h-40"
           style={{
-            background: `linear-gradient(135deg, ${gradientFromUsername(seller.username)})`,
+            background: `linear-gradient(135deg, ${gradientFromUsername(profile.username)})`,
           }}
         />
         <div className="px-6 pb-6">
           <div className="-mt-12 flex flex-wrap items-end gap-4">
-            <Avatar name={seller.displayName} large />
+            <Avatar name={profile.display_name} large />
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight text-white">
-                  {seller.displayName}
+                <h1 className="font-display text-2xl font-black tracking-tight text-white">
+                  {profile.display_name}
                 </h1>
-                {seller.verified && (
+                {profile.is_verified && (
                   <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300">
                     <CheckCircle2 size={12} />
                     Verified
@@ -69,49 +137,51 @@ export default async function SellerStorefrontPage({
                 )}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-white/50">
-                <span className="font-mono">@{seller.username}</span>
-                <span className="inline-flex items-center gap-1">
-                  <MapPin size={12} /> {seller.location}
-                </span>
-                <span>Joined {formatJoined(seller.joinedAt)}</span>
+                <span className="font-mono">@{profile.username}</span>
+                {profile.location && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={12} /> {profile.location}
+                  </span>
+                )}
+                <span>Joined {joinedDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
               </div>
             </div>
             <div className="flex gap-2">
               <Link
-                href={`/account/messages/new?to=${seller.username}`}
-                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                href={`/account/messages/new?to=${profile.username}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300"
               >
                 <MessageCircle size={14} />
                 Message
               </Link>
-              <FollowButton username={seller.username} />
+              <FollowButton username={profile.username} />
             </div>
           </div>
 
-          <p className="mt-4 max-w-3xl text-sm text-white/60">{seller.bio}</p>
+          {profile.bio && (
+            <p className="mt-4 max-w-3xl text-sm text-white/60">{profile.bio}</p>
+          )}
 
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-            <Stat icon={<Package size={14} />} label="Total sales">
-              <span className="font-bold text-white">{seller.totalSales.toLocaleString()}</span>
-            </Stat>
-            <Stat icon={<Clock size={14} />} label="Response time">
-              <span className="font-bold text-white">{seller.responseTime}</span>
-            </Stat>
-            <Stat icon={<ShieldCheck size={14} />} label="Member since">
-              <span className="font-bold text-white">{formatJoined(seller.joinedAt)}</span>
-            </Stat>
+            <Stat icon={<Package size={14} />} label="Total sales" value={totalSales.toLocaleString()} />
+            <Stat
+              icon={<Package size={14} />}
+              label="Active listings"
+              value={String(sellerListings.length)}
+            />
+            <Stat
+              icon={<ShieldCheck size={14} />}
+              label="Member since"
+              value={joinedDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+            />
           </div>
         </div>
-      </div>
-
-      <div className="mt-6">
-        <FeedbackSummary username={username} />
       </div>
 
       <section className="mt-8">
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white">Active listings</h2>
+            <h2 className="font-display text-lg font-black text-white">Active listings</h2>
             <p className="text-sm text-white/50">
               {sellerListings.length}{" "}
               {sellerListings.length === 1 ? "product" : "products"} available
@@ -122,34 +192,36 @@ export default async function SellerStorefrontPage({
         {sellerListings.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-12 text-center">
             <Package className="mx-auto text-white/40" size={32} />
-            <p className="mt-3 text-sm font-bold text-white">No active listings</p>
+            <p className="font-display mt-3 text-sm font-bold text-white">No active listings</p>
             <p className="mt-1 text-sm text-white/50">
-              {seller.displayName} doesn&apos;t have anything listed right now.
+              {profile.display_name} doesn&apos;t have anything listed right now.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {sellerListings.slice(0, 12).map(({ sku, listing, stock }) => (
+            {sellerListings.slice(0, 12).map(({ sku, priceCents, quantity }) => (
               <Link
                 key={sku.id}
                 href={`/product/${sku.slug}`}
-                className="group flex flex-col overflow-hidden rounded-lg border border-white/10 bg-[#101012] transition hover:shadow-md"
+                className="group flex flex-col overflow-hidden rounded-lg border border-white/10 bg-[#101012] transition hover:border-amber-400/30"
               >
                 <ProductImage sku={sku} size="card" className="aspect-[4/5]" />
                 <div className="flex flex-1 flex-col p-3">
-                  <div className="line-clamp-2 text-sm font-semibold text-white group-hover:text-amber-300">
-                    {formatSkuTitle(sku)}
+                  <div className="line-clamp-2 text-sm font-semibold text-white transition group-hover:text-amber-300">
+                    {sku.year} {sku.brand} {sku.product}
                   </div>
                   <div className="mt-3 flex items-end justify-between">
                     <div>
                       <div className="text-[10px] font-semibold tracking-wider text-white/40 uppercase">
                         Their ask
                       </div>
-                      <div className="text-base font-bold text-white">
-                        {formatUSDFull(listing.price)}
+                      <div className="font-display text-base font-black text-amber-400">
+                        {formatUSDFull(priceCents / 100)}
                       </div>
                     </div>
-                    <div className="text-xs text-white/50">{stock} listed</div>
+                    <div className="text-xs text-white/50">
+                      {quantity} {quantity === 1 ? "left" : "listed"}
+                    </div>
                   </div>
                 </div>
               </Link>
@@ -159,60 +231,16 @@ export default async function SellerStorefrontPage({
       </section>
 
       <section className="mt-10">
-        <div className="mb-3 flex items-end justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-white">Recent feedback</h2>
-            <p className="text-sm text-white/50">
-              {reviews.length === 0 ? "No reviews yet" : `${reviews.length} buyer reviews`}
-            </p>
-          </div>
+        <div className="mb-3">
+          <h2 className="font-display text-lg font-black text-white">Recent feedback</h2>
+          <p className="text-sm text-white/50">
+            Reviews show up after buyers complete orders.
+          </p>
         </div>
 
-        {reviews.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
-            Reviews will appear here after buyers complete orders.
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {reviews.map((r) => {
-              const sku = skus.find((s) => s.id === r.skuId);
-              return (
-                <li key={r.id} className="rounded-xl border border-white/10 bg-[#101012] p-5">
-                  <div className="flex items-start gap-3">
-                    <Avatar name={r.reviewer} />
-                    <div className="flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="text-sm font-bold text-white">{r.reviewer}</div>
-                          <VerdictTag verdict={r.verdict} />
-                        </div>
-                        <div className="text-xs text-white/40">{formatTs(r.ts)}</div>
-                      </div>
-                      <Stars stars={r.stars} />
-                      {sku && (
-                        <Link
-                          href={`/product/${sku.slug}`}
-                          className="mt-1 block text-xs text-white/50 hover:text-amber-300"
-                        >
-                          on {formatSkuTitle(sku)}
-                        </Link>
-                      )}
-                      <p className="mt-2 text-sm text-white/80">{r.text}</p>
-                      {r.sellerReply && (
-                        <div className="mt-3 rounded-md border-l-2 border-amber-700/40 bg-amber-500/10 px-3 py-2">
-                          <div className="text-xs font-bold text-white/80">
-                            {seller.displayName} replied
-                          </div>
-                          <p className="mt-0.5 text-sm text-white/80">{r.sellerReply.text}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
+          {profile.display_name} doesn&apos;t have reviews yet.
+        </div>
       </section>
     </div>
   );
@@ -221,19 +249,19 @@ export default async function SellerStorefrontPage({
 function Stat({
   icon,
   label,
-  children,
+  value,
 }: {
   icon: React.ReactNode;
   label: string;
-  children: React.ReactNode;
+  value: string;
 }) {
   return (
     <div className="rounded-lg border border-white/10 bg-[#101012] p-3">
-      <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-white/50 uppercase">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-white/50 uppercase">
         <span className="text-white/40">{icon}</span>
         {label}
       </div>
-      <div className="mt-1 text-base">{children}</div>
+      <div className="mt-1 font-display text-base font-black text-white">{value}</div>
     </div>
   );
 }
@@ -241,48 +269,22 @@ function Stat({
 function Avatar({ name, large }: { name: string; large?: boolean }) {
   const initial = name[0]?.toUpperCase() ?? "?";
   const colors = [
-    "bg-emerald-600",
-    "bg-sky-600",
-    "bg-rose-600",
-    "bg-amber-600",
-    "bg-violet-600",
-    "bg-cyan-600",
+    "from-emerald-400 to-emerald-600",
+    "from-sky-400 to-sky-600",
+    "from-rose-400 to-rose-600",
+    "from-amber-400 to-amber-600",
+    "from-violet-400 to-violet-600",
+    "from-cyan-400 to-cyan-600",
   ];
   const color = colors[name.charCodeAt(0) % colors.length];
-  const size = large ? "h-24 w-24 text-3xl ring-4 ring-white" : "h-10 w-10 text-base";
+  const size = large
+    ? "h-24 w-24 text-3xl ring-4 ring-[#0a0a0b]"
+    : "h-10 w-10 text-base";
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${color} ${size}`}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-bold text-white shadow-lg ${color} ${size}`}
     >
       {initial}
-    </div>
-  );
-}
-
-function VerdictTag({ verdict }: { verdict: Verdict }) {
-  const cfg = {
-    positive: "bg-emerald-500/10 text-emerald-300",
-    neutral: "bg-amber-500/10 text-amber-300",
-    negative: "bg-rose-500/10 text-rose-300",
-  }[verdict];
-  const label = verdict[0].toUpperCase() + verdict.slice(1);
-  return (
-    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase ${cfg}`}>
-      {label}
-    </span>
-  );
-}
-
-function Stars({ stars }: { stars: number }) {
-  return (
-    <div className="mt-1 flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star
-          key={n}
-          size={12}
-          className={n <= stars ? "fill-amber-400 text-amber-400" : "text-slate-200"}
-        />
-      ))}
     </div>
   );
 }
@@ -297,19 +299,4 @@ function gradientFromUsername(u: string) {
     "#0c4a6e, #0891b2",
   ];
   return palettes[u.charCodeAt(0) % palettes.length];
-}
-
-function formatJoined(d: string) {
-  const [y, m, day] = d.split("-").map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
-
-function formatTs(ts: string) {
-  const [date] = ts.split(" ");
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-export function generateStaticParams() {
-  return sellers.map((s) => ({ username: s.username }));
 }

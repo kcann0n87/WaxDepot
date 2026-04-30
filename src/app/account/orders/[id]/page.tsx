@@ -1,22 +1,153 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Circle, Clock, MapPin, MessageCircle, Package, ShieldCheck, Truck } from "lucide-react";
-import { findOrder } from "@/lib/orders";
-import { skus } from "@/lib/data";
+import { notFound, redirect } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  Clock,
+  MapPin,
+  MessageCircle,
+  Package,
+  ShieldCheck,
+  Truck,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 import { CancelOrderButton } from "./cancel-order";
 import { ConfirmDeliveryButton } from "./confirm-delivery";
-import { LeaveReview } from "./leave-review";
-import { TrackingTimeline } from "@/components/tracking-timeline";
-import { formatSkuTitle, formatUSDFull } from "@/lib/utils";
+import { ShipForm } from "../../listings/[id]/ship-form";
+import { formatUSDFull } from "@/lib/utils";
 
-export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+type OrderStatus =
+  | "Charged"
+  | "InEscrow"
+  | "Shipped"
+  | "Delivered"
+  | "Released"
+  | "Completed"
+  | "Canceled";
+
+type OrderRow = {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  sku_id: string;
+  qty: number;
+  price_cents: number;
+  shipping_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  card_last4: string | null;
+  status: OrderStatus;
+  carrier: string | null;
+  tracking: string | null;
+  estimated_delivery: string | null;
+  ship_to_name: string;
+  ship_to_addr1: string;
+  ship_to_city: string;
+  ship_to_state: string;
+  ship_to_zip: string;
+  placed_at: string;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  released_at: string | null;
+  canceled_at: string | null;
+  cancel_reason: string | null;
+  sku:
+    | {
+        slug: string;
+        year: number;
+        brand: string;
+        product: string;
+        sport: string;
+        gradient_from: string | null;
+        gradient_to: string | null;
+      }
+    | {
+        slug: string;
+        year: number;
+        brand: string;
+        product: string;
+        sport: string;
+        gradient_from: string | null;
+        gradient_to: string | null;
+      }[]
+    | null;
+};
+
+export default async function OrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const order = findOrder(id);
-  if (!order) notFound();
-  const sku = skus.find((s) => s.id === order.skuId)!;
 
-  const isDelivered = order.status === "Delivered";
-  const isCompleted = order.status === "Completed";
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=/account/orders/${id}`);
+
+  const { data: order } = (await supabase
+    .from("orders")
+    .select(
+      "*, sku:skus!orders_sku_id_fkey(slug, year, brand, product, sport, gradient_from, gradient_to)",
+    )
+    .eq("id", id)
+    .maybeSingle()) as { data: OrderRow | null };
+
+  if (!order) notFound();
+  const isBuyer = order.buyer_id === user.id;
+  const isSeller = order.seller_id === user.id;
+  if (!isBuyer && !isSeller) notFound();
+
+  const sku = Array.isArray(order.sku) ? order.sku[0] : order.sku;
+  if (!sku) notFound();
+
+  // Look up the counterparty's display info.
+  const counterpartyId = isBuyer ? order.seller_id : order.buyer_id;
+  const { data: counterparty } = await supabase
+    .from("profiles")
+    .select("username, display_name")
+    .eq("id", counterpartyId)
+    .maybeSingle();
+
+  const total = order.total_cents / 100;
+  const isShipped = ["Shipped", "Delivered", "Released", "Completed"].includes(order.status);
+  const isDelivered = ["Delivered", "Released", "Completed"].includes(order.status);
+  const isReleased = ["Released", "Completed"].includes(order.status);
+  const isCanceled = order.status === "Canceled";
+  const addressPending = order.ship_to_addr1 === "ADDRESS_PENDING";
+
+  const events: { state: "done" | "current" | "pending"; label: string; ts?: string; detail?: string }[] = [
+    {
+      state: "done",
+      label: "Order placed",
+      ts: formatTs(order.placed_at),
+      detail: `Bid accepted by ${counterparty?.display_name ?? "seller"}.`,
+    },
+    {
+      state: order.shipped_at ? "done" : isCanceled ? "pending" : "current",
+      label: "Awaiting shipment",
+      ts: order.shipped_at ? formatTs(order.shipped_at) : undefined,
+      detail: order.tracking ? `${order.carrier} · ${order.tracking}` : undefined,
+    },
+    {
+      state: order.delivered_at
+        ? "done"
+        : order.shipped_at && !isCanceled
+          ? "current"
+          : "pending",
+      label: "Out for delivery",
+      ts: order.delivered_at ? formatTs(order.delivered_at) : undefined,
+    },
+    {
+      state: isReleased ? "done" : isDelivered ? "current" : "pending",
+      label: "Funds released",
+      ts: order.released_at ? formatTs(order.released_at) : undefined,
+      detail: isReleased ? "Buyer confirmed; payment moved to seller's pending balance." : undefined,
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -25,47 +156,74 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <ArrowLeft size={14} /> Account
         </Link>
         <span>/</span>
-        <Link href="/account" className="hover:text-white">
-          Orders
-        </Link>
+        <span className="text-white/70">Orders</span>
         <span>/</span>
         <span className="font-mono text-white">{order.id}</span>
       </div>
 
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">
+          <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+            {isBuyer ? "Your order" : "Sale"}
+          </div>
+          <h1 className="font-display mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
             Order {order.id}
           </h1>
           <p className="text-sm text-white/50">
-            Placed {formatDate(order.placedAt)} · sold by{" "}
+            Placed {formatDate(order.placed_at)} ·{" "}
+            {isBuyer ? "sold by " : "bought by "}
             <Link
-              href={`/seller/${order.seller}`}
-              className="font-semibold text-amber-300 hover:underline"
+              href={
+                isBuyer && counterparty?.username
+                  ? `/seller/${counterparty.username}`
+                  : "#"
+              }
+              className="font-semibold text-amber-300 transition hover:underline"
             >
-              {order.seller}
-            </Link>{" "}
-            ·{" "}
-            <Link
-              href={`/account/messages/new?to=${order.seller}&order=${order.id}`}
-              className="inline-flex items-center gap-1 font-semibold text-amber-300 hover:underline"
-            >
-              <MessageCircle size={11} className="inline" />
-              Message
+              {counterparty?.display_name ?? "—"}
             </Link>
+            {counterparty?.username && (
+              <>
+                {" · "}
+                <Link
+                  href={`/account/messages/new?to=${counterparty.username}&order=${order.id}`}
+                  className="inline-flex items-center gap-1 font-semibold text-amber-300 transition hover:underline"
+                >
+                  <MessageCircle size={11} className="inline" />
+                  Message
+                </Link>
+              </>
+            )}
           </p>
         </div>
-        <StatusBadge status={order.status} />
+        <StatusBadge status={order.status} isBuyer={isBuyer} />
       </div>
+
+      {addressPending && !isCanceled && (
+        <div className="mb-6 rounded-lg border border-amber-700/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-400" />
+            <div className="text-amber-100">
+              <strong className="text-amber-50">Shipping address pending.</strong>{" "}
+              {isBuyer
+                ? "Once payment processing goes live (Stripe Checkout, rolling out next), you'll be prompted to confirm your shipping address — the seller can't ship until then."
+                : "The buyer hasn't confirmed their shipping address yet. They'll do this once payment processing goes live (Stripe Checkout, rolling out next)."}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
+          {/* Product card */}
           <div className="rounded-xl border border-white/10 bg-[#101012] p-5">
             <div className="flex items-start gap-4">
               <Link
                 href={`/product/${sku.slug}`}
                 className="block h-20 w-16 shrink-0 overflow-hidden rounded text-[8px] font-bold text-white"
-                style={{ background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})` }}
+                style={{
+                  background: `linear-gradient(135deg, ${sku.gradient_from ?? "#475569"}, ${sku.gradient_to ?? "#0f172a"})`,
+                }}
               >
                 <div className="flex h-full items-center justify-center">
                   {sku.brand.slice(0, 4).toUpperCase()}
@@ -74,47 +232,61 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div className="flex-1">
                 <Link
                   href={`/product/${sku.slug}`}
-                  className="text-base font-bold text-white hover:text-amber-300"
+                  className="text-base font-bold text-white transition hover:text-amber-300"
                 >
-                  {formatSkuTitle(sku)}
+                  {sku.year} {sku.brand} {sku.product}
                 </Link>
                 <div className="text-xs text-white/50">
                   {sku.sport} · Factory Sealed · Qty {order.qty}
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-                  <Spec label="Item" value={formatUSDFull(order.price)} />
-                  <Spec label="Shipping" value={order.shipping === 0 ? "Free" : formatUSDFull(order.shipping)} />
-                  <Spec label="Tax" value={formatUSDFull(order.tax)} />
+                  <Spec label="Item" value={formatUSDFull(order.price_cents / 100)} />
+                  <Spec
+                    label="Shipping"
+                    value={
+                      order.shipping_cents === 0
+                        ? "Free"
+                        : formatUSDFull(order.shipping_cents / 100)
+                    }
+                  />
+                  <Spec label="Tax" value={formatUSDFull(order.tax_cents / 100)} />
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs font-semibold tracking-wider text-white/40 uppercase">Total</div>
-                <div className="text-xl font-bold text-white">{formatUSDFull(order.total)}</div>
-                <div className="mt-1 text-xs text-white/50">Card •••{order.cardLast4}</div>
+                <div className="text-[10px] font-semibold tracking-wider text-white/40 uppercase">
+                  Total
+                </div>
+                <div className="font-display text-xl font-black text-amber-400">
+                  {formatUSDFull(total)}
+                </div>
+                <div className="mt-1 text-xs text-white/50">
+                  {order.card_last4 ? `Card •••${order.card_last4}` : "Payment pending"}
+                </div>
               </div>
             </div>
           </div>
 
+          {/* Timeline */}
           <div className="rounded-xl border border-white/10 bg-[#101012] p-5">
-            <h2 className="mb-4 text-base font-bold text-white">Order timeline</h2>
+            <h2 className="font-display mb-4 text-base font-black text-white">Order timeline</h2>
             <ol className="relative space-y-3">
-              {order.events.map((e, i) => (
+              {events.map((e, i) => (
                 <li key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     {e.state === "done" ? (
                       <CheckCircle2 className="text-emerald-400" size={18} />
                     ) : e.state === "current" ? (
-                      <div className="flex h-[18px] w-[18px] items-center justify-center">
-                        <span className="absolute h-3 w-3 animate-ping rounded-full bg-indigo-400 opacity-75" />
-                        <span className="relative h-2.5 w-2.5 rounded-full bg-indigo-600" />
+                      <div className="relative flex h-[18px] w-[18px] items-center justify-center">
+                        <span className="absolute h-3 w-3 animate-ping rounded-full bg-amber-400 opacity-75" />
+                        <span className="relative h-2.5 w-2.5 rounded-full bg-amber-500" />
                       </div>
                     ) : (
                       <Circle className="text-white/30" size={18} />
                     )}
-                    {i < order.events.length - 1 && (
+                    {i < events.length - 1 && (
                       <div
                         className={`mt-1 h-full w-px flex-1 ${
-                          e.state === "done" ? "bg-emerald-200" : "bg-slate-200"
+                          e.state === "done" ? "bg-emerald-500/40" : "bg-white/10"
                         }`}
                       />
                     )}
@@ -127,54 +299,80 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     >
                       {e.label}
                     </div>
-                    {e.detail && (
-                      <div className="mt-0.5 text-xs text-white/50">{e.detail}</div>
-                    )}
-                    {e.ts && (
-                      <div className="mt-0.5 text-[11px] text-white/40">{e.ts}</div>
-                    )}
+                    {e.detail && <div className="mt-0.5 text-xs text-white/50">{e.detail}</div>}
+                    {e.ts && <div className="mt-0.5 text-[11px] text-white/40">{e.ts}</div>}
                   </div>
                 </li>
               ))}
             </ol>
 
-            {isDelivered && <ConfirmDeliveryButton orderId={order.id} />}
-            {isCompleted && (
+            {/* Buyer: confirm delivery once shipped */}
+            {isBuyer && order.status === "Shipped" && (
+              <ConfirmDeliveryButton orderId={order.id} />
+            )}
+            {isBuyer && order.status === "Delivered" && (
+              <ConfirmDeliveryButton orderId={order.id} />
+            )}
+            {isReleased && (
               <div className="mt-2 rounded-md border border-emerald-700/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
                 <ShieldCheck size={14} className="mr-1 inline align-text-bottom" />
-                You confirmed this order as sealed and arrived in good condition. Funds were released
-                to {order.seller}.
+                {isBuyer ? (
+                  <>
+                    You confirmed this order arrived sealed. Funds were released to{" "}
+                    {counterparty?.display_name ?? "the seller"}.
+                  </>
+                ) : (
+                  <>
+                    Buyer confirmed delivery. ${formatUSDFull(total)} has been released to your
+                    pending balance.
+                  </>
+                )}
+              </div>
+            )}
+            {isCanceled && (
+              <div className="mt-2 rounded-md border border-rose-700/40 bg-rose-500/10 p-3 text-xs text-rose-200">
+                Order canceled{order.cancel_reason ? ` — ${order.cancel_reason}` : ""}.
               </div>
             )}
           </div>
 
-          {order.trackingEvents && order.tracking && order.carrier && (
-            <TrackingTimeline
-              events={order.trackingEvents}
-              carrier={order.carrier}
-              tracking={order.tracking}
-              estimatedDelivery={order.estimatedDelivery}
-            />
+          {/* Seller: ship form (until shipped) */}
+          {isSeller && !isShipped && !isCanceled && (
+            <div className="rounded-xl border border-white/10 bg-[#101012] p-5">
+              <h2 className="font-display mb-3 text-base font-black text-white">Ship this order</h2>
+              <ShipForm
+                orderId={order.id}
+                initialCarrier={order.carrier}
+                initialTracking={order.tracking}
+                needsShipBy={daysFromNow(order.placed_at, 2)}
+              />
+            </div>
           )}
-
-          {isCompleted && <LeaveReview sellerUsername={order.seller} />}
         </div>
 
         <aside className="space-y-4">
+          {/* Shipping address */}
           <div className="rounded-xl border border-white/10 bg-[#101012] p-5">
             <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
               <MapPin size={16} className="text-white/40" />
               Shipping to
             </div>
-            <div className="text-sm">
-              <div className="font-semibold text-white">{order.shipTo.name}</div>
-              <div className="text-white/60">{order.shipTo.addr1}</div>
-              <div className="text-white/60">
-                {order.shipTo.city}, {order.shipTo.state} {order.shipTo.zip}
+            {addressPending ? (
+              <div className="rounded-md border border-amber-700/30 bg-amber-500/10 p-3 text-xs text-amber-100">
+                Address pending — buyer confirms during Stripe Checkout (rolling out next).
               </div>
-            </div>
+            ) : (
+              <div className="text-sm">
+                <div className="font-semibold text-white">{order.ship_to_name}</div>
+                <div className="text-white/60">{order.ship_to_addr1}</div>
+                <div className="text-white/60">
+                  {order.ship_to_city}, {order.ship_to_state} {order.ship_to_zip}
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Tracking */}
           {order.tracking && (
             <div className="rounded-xl border border-white/10 bg-[#101012] p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
@@ -183,68 +381,100 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               </div>
               <div className="text-xs text-white/50">{order.carrier}</div>
               <div className="font-mono text-sm font-semibold text-white">{order.tracking}</div>
-              {order.estimatedDelivery && (
+              {order.estimated_delivery && (
                 <div className="mt-3 flex items-center gap-1.5 text-xs text-white/60">
                   <Clock size={12} className="text-white/40" />
-                  Est. delivery {formatDate(order.estimatedDelivery)}
+                  Est. delivery {formatDate(order.estimated_delivery)}
                 </div>
               )}
-              <a
-                href="#"
-                className="mt-3 block w-full rounded-md border border-white/15 bg-[#101012] px-3 py-2 text-center text-xs font-semibold text-white/80 hover:bg-white/[0.02]"
-              >
-                Track on {order.carrier} →
-              </a>
             </div>
           )}
 
-          {!order.tracking && order.estimatedDelivery && (
+          {/* Buyer-only: cancel until shipped */}
+          {isBuyer && !isShipped && !isCanceled && (
             <div className="rounded-xl border border-amber-700/40 bg-amber-500/10 p-5">
               <div className="mb-2 flex items-center gap-2 text-sm font-bold text-amber-100">
                 <Package size={16} className="text-amber-300" />
                 Awaiting shipment
               </div>
-              <p className="text-xs text-amber-200">
-                Seller has until <strong>{formatDate(order.placedAt, 2)}</strong> to ship. You&apos;ll
-                get an email with tracking once they do.
+              <p className="text-xs text-amber-200/80">
+                Seller has until <strong>{daysFromNow(order.placed_at, 2)}</strong> to ship.
+                You&apos;ll get a notification with tracking once they do.
               </p>
-              <div className="mt-3 border-t border-amber-700/40 pt-2">
-                <CancelOrderButton orderId={order.id} total={order.total} />
+              <div className="mt-3 border-t border-amber-700/30 pt-2">
+                <CancelOrderButton orderId={order.id} total={total} />
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold text-white/80">
-              <ShieldCheck size={14} className="text-emerald-400" />
-              Buyer Protection
+          {/* Buyer protection */}
+          {isBuyer && (
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold text-white/80">
+                <ShieldCheck size={14} className="text-emerald-400" />
+                Buyer Protection
+              </div>
+              <p className="text-xs text-white/60">
+                Your payment is held in escrow once Stripe is wired. If the box doesn&apos;t arrive
+                sealed, open a dispute within 3 days of delivery.
+              </p>
+              <Link
+                href={`/account/disputes/new?order=${order.id}`}
+                className="mt-2 inline-block text-xs font-semibold text-amber-300 transition hover:underline"
+              >
+                Open a dispute →
+              </Link>
             </div>
-            <p className="text-xs text-white/60">
-              Your payment is held in escrow. If the box doesn&apos;t arrive sealed, open a dispute
-              within 3 days of delivery for a full refund.
-            </p>
-            <Link
-              href={`/account/disputes/new?order=${order.id}`}
-              className="mt-2 inline-block text-xs font-semibold text-amber-300 hover:underline"
-            >
-              Open a dispute →
-            </Link>
-          </div>
+          )}
         </aside>
       </div>
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: import("@/lib/orders").OrderStatus }) {
-  const cfg = {
-    Escrow: { bg: "bg-amber-500/10", text: "text-amber-300", label: "Awaiting ship" },
-    Shipped: { bg: "bg-sky-500/10", text: "text-sky-300", label: "In transit" },
-    Delivered: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Delivered · Confirm to release" },
-    Completed: { bg: "bg-emerald-500/10", text: "text-emerald-300", label: "Completed" },
-  }[status];
+function StatusBadge({ status, isBuyer }: { status: OrderStatus; isBuyer: boolean }) {
+  const labelMap: Record<OrderStatus, { bg: string; text: string; label: string }> = {
+    Charged: {
+      bg: "border-amber-700/40 bg-amber-500/15",
+      text: "text-amber-300",
+      label: isBuyer ? "Awaiting ship" : "Ready to ship",
+    },
+    InEscrow: {
+      bg: "border-amber-700/40 bg-amber-500/15",
+      text: "text-amber-300",
+      label: "In escrow",
+    },
+    Shipped: {
+      bg: "border-sky-700/40 bg-sky-500/15",
+      text: "text-sky-300",
+      label: "In transit",
+    },
+    Delivered: {
+      bg: "border-amber-700/40 bg-amber-500/15",
+      text: "text-amber-300",
+      label: isBuyer ? "Delivered · Confirm" : "Delivered",
+    },
+    Released: {
+      bg: "border-emerald-700/40 bg-emerald-500/15",
+      text: "text-emerald-300",
+      label: "Released",
+    },
+    Completed: {
+      bg: "border-emerald-700/40 bg-emerald-500/15",
+      text: "text-emerald-300",
+      label: "Completed",
+    },
+    Canceled: {
+      bg: "border-rose-700/40 bg-rose-500/15",
+      text: "text-rose-300",
+      label: "Canceled",
+    },
+  };
+  const cfg = labelMap[status];
   return (
-    <span className={`inline-flex rounded-md px-3 py-1.5 text-sm font-bold ${cfg.bg} ${cfg.text}`}>
+    <span
+      className={`inline-flex rounded-md border px-3 py-1.5 text-sm font-bold ${cfg.bg} ${cfg.text}`}
+    >
       {cfg.label}
     </span>
   );
@@ -259,8 +489,23 @@ function Spec({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatDate(d: string, addDays = 0) {
-  const [y, m, day] = d.split(" ")[0].split("-").map(Number);
-  const date = new Date(y, m - 1, day + addDays);
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatTs(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${d.toLocaleTimeString(
+    "en-US",
+    { hour: "numeric", minute: "2-digit" },
+  )}`;
+}
+
+function daysFromNow(fromIso: string, n: number) {
+  const d = new Date(new Date(fromIso).getTime() + n * 24 * 60 * 60 * 1000);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
