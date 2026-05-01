@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
-  Building2,
   Check,
   ChevronRight,
   Lightbulb,
@@ -96,16 +95,10 @@ export function SellForm({
         sealed.
       </p>
 
-      <Link
-        href="/sell/payouts"
-        className="mt-4 flex items-center gap-3 rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-2.5 text-sm transition hover:bg-amber-500/15"
-      >
-        <Building2 size={16} className="text-amber-300" />
-        <span className="flex-1 text-amber-100">
-          <strong>Set up payouts</strong> to receive ACH transfers on your tier&apos;s schedule.
-        </span>
-        <ChevronRight size={16} className="text-amber-300" />
-      </Link>
+      {/* The "Set up payouts" CTA banner that used to live here was removed
+          — anyone on this page already passed the /sell gate, which means
+          they're already Stripe-connected. The banner only confused
+          connected sellers into thinking something was still missing. */}
 
       <Stepper step={step} />
 
