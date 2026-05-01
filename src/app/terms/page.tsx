@@ -30,8 +30,8 @@ export default function TermsPage() {
       <div className="prose prose-invert mt-8 max-w-none space-y-6 text-[15px] leading-relaxed text-white/80">
         <Section n="1" title="Who we are">
           <p>
-            WaxDepot (&quot;<strong>WaxDepot</strong>,&quot; &quot;<strong>we</strong>,&quot;
-            &quot;<strong>us</strong>&quot;) operates the marketplace at{" "}
+            WaxDepot LLC, a Wyoming limited liability company (&quot;<strong>WaxDepot</strong>,&quot;
+            &quot;<strong>we</strong>,&quot; &quot;<strong>us</strong>&quot;) operates the marketplace at{" "}
             <Link href="/" className="text-amber-300 hover:underline">
               waxdepot.io
             </Link>{" "}
@@ -289,10 +289,14 @@ export default function TermsPage() {
         <Section n="15" title="Dispute resolution and arbitration">
           <p>
             <strong>You and WaxDepot agree to resolve disputes through binding
-            individual arbitration</strong>, not in court, except for
-            small-claims actions and claims for injunctive relief related to
-            intellectual property. Arbitration will be administered by JAMS
-            under its Streamlined Arbitration Rules in [your-county], [your-state].
+            individual arbitration</strong>, not in court, except for small-claims
+            actions and claims for injunctive relief related to intellectual
+            property. Arbitration will be administered by JAMS under its
+            Streamlined Arbitration Rules. Hearings will be conducted{" "}
+            <strong>remotely</strong> by default; if either party requests an
+            in-person hearing, it will be held in <strong>Sheridan County,
+            Wyoming</strong> or another location both parties agree to in
+            writing.
           </p>
           <p>
             <strong>Class actions are waived.</strong> You may bring claims only
@@ -314,8 +318,12 @@ export default function TermsPage() {
 
         <Section n="16" title="Governing law">
           <p>
-            These Terms are governed by the laws of [your-state], United States,
-            without regard to its conflict-of-laws principles.
+            These Terms are governed by the laws of the{" "}
+            <strong>State of Wyoming</strong>, United States, without regard to
+            its conflict-of-laws principles. Subject to the arbitration
+            agreement above, the state and federal courts located in Sheridan
+            County, Wyoming have exclusive jurisdiction over any non-arbitrable
+            dispute.
           </p>
         </Section>
 
@@ -354,12 +362,14 @@ export default function TermsPage() {
         <p className="rounded-md border border-amber-700/30 bg-amber-500/[0.04] px-4 py-3 text-xs text-amber-100/80">
           <strong className="text-amber-300">Heads up — draft for review:</strong>{" "}
           This Terms of Service was drafted from the actual mechanics of the
-          marketplace as built. It is a starting template, not legal advice.
-          Have it reviewed by an attorney licensed in your jurisdiction before
-          relying on it for arbitration enforceability, jurisdiction-specific
-          consumer protection requirements, or marketplace facilitator
-          compliance. Replace bracketed placeholders ([your-state], [your-county])
-          and the legal contact email before launch.
+          marketplace as built and assumes WaxDepot LLC is registered as a
+          Wyoming limited liability company. It is a starting template, not
+          legal advice. Have it reviewed by an attorney licensed in Wyoming
+          (and ideally one familiar with online-marketplace operators) before
+          relying on it for arbitration enforceability, marketplace facilitator
+          compliance, or any specific dispute. Confirm the{" "}
+          <code>legal@waxdepot.io</code> mailbox is set up and monitored before
+          launch.
         </p>
       </div>
     </div>
