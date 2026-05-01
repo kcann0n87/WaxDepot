@@ -46,8 +46,25 @@ export function SiteFooter() {
         />
       </div>
       <div className="border-t border-white/5">
-        <div className="mx-auto max-w-7xl px-4 py-4 text-[11px] text-white/50">
-          © {new Date().getFullYear()} WaxDepot · waxdepot.io
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-[11px] text-white/50">
+          <span>© {new Date().getFullYear()} WaxDepot · waxdepot.io</span>
+          <span className="flex items-center gap-3">
+            <Link href="/terms" className="transition hover:text-white">
+              Terms of Service
+            </Link>
+            <Link
+              href="/help/buying/buyer-protection"
+              className="transition hover:text-white"
+            >
+              Buyer Protection
+            </Link>
+            <Link
+              href="/help/contact"
+              className="transition hover:text-white"
+            >
+              Contact
+            </Link>
+          </span>
         </div>
       </div>
     </footer>

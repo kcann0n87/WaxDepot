@@ -90,8 +90,15 @@ export function SignupForm({ next }: { next: string }) {
 
       <div className="text-center text-[11px] text-white/60">
         By creating an account you agree to our{" "}
-        <a href="#" className="text-white/60 transition hover:text-amber-300">Terms</a> and{" "}
-        <a href="#" className="text-white/60 transition hover:text-amber-300">Privacy Policy</a>.
+        <a
+          href="/terms"
+          target="_blank"
+          rel="noopener"
+          className="text-white/80 underline decoration-white/20 transition hover:text-amber-300"
+        >
+          Terms of Service
+        </a>
+        .
       </div>
     </form>
   );
