@@ -58,44 +58,48 @@ export default async function Home({
 
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-white/5">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_-10%,rgba(212,175,55,0.18),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_110%,rgba(124,58,237,0.12),transparent_50%)]" />
-        <div className="relative mx-auto max-w-7xl px-6 py-20 lg:py-28">
-          <div className="max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-white/70 uppercase backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600" />
-              Sealed Sports Cards · Est. 2026
-            </div>
-            <h1 className="font-display text-5xl leading-[1.05] font-black tracking-tight text-white lg:text-7xl">
-              The order book for sealed{" "}
-              <span className="italic text-amber-400">sports</span> wax.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
-              Trade sealed cards like stocks. Real bid, real ask, real escrow — no eBay tax,
-              no chargebacks, no guesswork.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link
-                href="#featured"
-                className="rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-3 text-sm font-bold text-slate-900 shadow-lg shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
-              >
-                Browse the catalog
-              </Link>
-              <Link
-                href="/sell"
-                className="rounded-md border border-white/15 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/5"
-              >
-                List a box →
-              </Link>
+      {/* Hero — home view only. In browse mode the user is already
+          shopping, so the marketing pitch is just dead space pushing the
+          actual products below the fold. */}
+      {!isBrowseMode && (
+        <section className="relative overflow-hidden border-b border-white/5">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_-10%,rgba(212,175,55,0.18),transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_110%,rgba(124,58,237,0.12),transparent_50%)]" />
+          <div className="relative mx-auto max-w-7xl px-6 py-20 lg:py-28">
+            <div className="max-w-3xl">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-white/70 uppercase backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600" />
+                Sealed Sports Cards · Est. 2026
+              </div>
+              <h1 className="font-display text-5xl leading-[1.05] font-black tracking-tight text-white lg:text-7xl">
+                The order book for sealed{" "}
+                <span className="italic text-amber-400">sports</span> wax.
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
+                Trade sealed cards like stocks. Real bid, real ask, real escrow — no eBay tax,
+                no chargebacks, no guesswork.
+              </p>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <Link
+                  href="#featured"
+                  className="rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-3 text-sm font-bold text-slate-900 shadow-lg shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
+                >
+                  Browse the catalog
+                </Link>
+                <Link
+                  href="/sell"
+                  className="rounded-md border border-white/15 px-5 py-3 text-sm font-semibold text-white/90 transition hover:border-white/30 hover:bg-white/5"
+                >
+                  List a box →
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Stats — only shown once real numbers cross meaningful thresholds */}
-      {showStats && (
+      {/* Stats — also home only. Same reasoning. */}
+      {showStats && !isBrowseMode && (
         <section className="border-b border-white/5">
           <div className="mx-auto grid max-w-7xl grid-cols-1 gap-px bg-white/5 sm:grid-cols-3">
             {stats.escrowUsd !== null && (
@@ -123,7 +127,9 @@ export default async function Home({
         </section>
       )}
 
-      <div className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
+      <div
+        className={`mx-auto max-w-7xl px-4 lg:px-6 ${isBrowseMode ? "py-6" : "py-16"}`}
+      >
         {(sport || yearNum) && (
           <div className="mb-6 text-sm text-white/50">
             Filtered by{" "}
