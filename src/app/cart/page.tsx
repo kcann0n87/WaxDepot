@@ -6,6 +6,7 @@ import { ArrowLeft, Building2, Check, CreditCard, Lock, Minus, Plus, ShieldCheck
 import { groupBySeller, useCart } from "@/lib/cart";
 import { skus } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
+import { SkuThumb } from "@/components/sku-thumb";
 
 export default function CartPage() {
   const { items, hydrated, subtotal, shipping, tax, total, itemCount, updateQty, remove, clear } = useCart();
@@ -114,14 +115,9 @@ export default function CartPage() {
                       <li key={item.id} className="flex gap-4 p-4">
                         <Link
                           href={`/product/${sku.slug}`}
-                          className="block h-20 w-16 shrink-0 overflow-hidden rounded text-[8px] font-bold text-white"
-                          style={{
-                            background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
-                          }}
+                          className="block h-20 w-16 shrink-0 overflow-hidden rounded"
                         >
-                          <div className="flex h-full items-center justify-center">
-                            {sku.brand.slice(0, 4).toUpperCase()}
-                          </div>
+                          <SkuThumb sku={sku} className="h-full w-full" alt={formatSkuTitle(sku)} />
                         </Link>
                         <div className="min-w-0 flex-1">
                           <Link

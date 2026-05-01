@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatUSDFull } from "@/lib/utils";
+import { SkuThumb } from "@/components/sku-thumb";
 import { NewDisputeForm } from "./new-dispute-form";
 
 export default async function NewDisputePage({
@@ -41,7 +42,7 @@ export default async function NewDisputePage({
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, buyer_id, seller_id, status, total_cents, sku:skus!orders_sku_id_fkey(slug, year, brand, product, gradient_from, gradient_to)",
+      "id, buyer_id, seller_id, status, total_cents, sku:skus!orders_sku_id_fkey(slug, year, brand, product, image_url, gradient_from, gradient_to)",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -131,14 +132,7 @@ export default async function NewDisputePage({
       </p>
 
       <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-        <div
-          className="flex h-12 w-10 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-          style={{
-            background: `linear-gradient(135deg, ${skuRel.gradient_from ?? "#475569"}, ${skuRel.gradient_to ?? "#0f172a"})`,
-          }}
-        >
-          {skuRel.brand.slice(0, 4).toUpperCase()}
-        </div>
+        <SkuThumb sku={skuRel} className="h-12 w-10 rounded" alt={`${skuRel.year} ${skuRel.brand} ${skuRel.product}`} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-white">
             {skuRel.year} {skuRel.brand} {skuRel.product}

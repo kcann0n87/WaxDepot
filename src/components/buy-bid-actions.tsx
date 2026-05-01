@@ -8,6 +8,7 @@ import { Sku } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
 import { createBid } from "@/app/actions/bids";
 import { createBuyNowCheckout } from "@/app/actions/stripe-checkout";
+import { SkuThumb } from "./sku-thumb";
 
 import { CURRENT_USER_TIER, TIER_FEE } from "@/lib/fees";
 
@@ -257,12 +258,7 @@ function BuyModal({
       <ModalHeader title="Buy at lowest ask" onClose={onClose} />
       <div className="max-h-[80vh] overflow-y-auto p-5">
         <div className="flex gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3">
-          <div
-            className="flex h-14 w-11 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-            style={{ background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})` }}
-          >
-            {sku.brand.slice(0, 4).toUpperCase()}
-          </div>
+          <SkuThumb sku={sku} className="h-14 w-11 rounded" alt={formatSkuTitle(sku)} />
           <div>
             <div className="text-sm font-bold text-white">{formatSkuTitle(sku)}</div>
             <div className="text-xs text-white/50">{sku.sport} · Factory Sealed</div>

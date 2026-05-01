@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Heart } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { WatchButton } from "@/components/watch-button";
+import { SkuThumb } from "@/components/sku-thumb";
 import { formatSkuTitle, formatUSDFull } from "@/lib/utils";
 import type { Sport, Sku } from "@/lib/data";
 
@@ -139,14 +140,7 @@ export default async function WatchlistPage() {
                   <tr key={sku.id} className="transition hover:bg-white/[0.02]">
                     <td className="px-4 py-3">
                       <Link href={`/product/${sku.slug}`} className="flex items-center gap-3">
-                        <div
-                          className="flex h-12 w-10 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-                          style={{
-                            background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
-                          }}
-                        >
-                          {sku.brand.slice(0, 4).toUpperCase()}
-                        </div>
+                        <SkuThumb sku={sku} className="h-12 w-10 rounded" alt={formatSkuTitle(sku)} />
                         <div>
                           <div className="text-sm font-semibold text-white transition hover:text-amber-300">
                             {formatSkuTitle(sku)}

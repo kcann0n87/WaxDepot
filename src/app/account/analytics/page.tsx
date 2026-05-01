@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { CURRENT_USER_TIER, TIER_FEE, TIER_PAYOUT_CADENCE, TIER_THRESHOLDS } from "@/lib/fees";
 import { SalesChart } from "@/components/analytics-chart";
+import { SkuThumb } from "@/components/sku-thumb";
 import { formatUSD, formatUSDFull } from "@/lib/utils";
 
 const PERIOD_DAYS = 30;
@@ -24,6 +25,7 @@ type SkuJoin = {
   year: number;
   brand: string;
   product: string;
+  image_url: string | null;
   gradient_from: string | null;
   gradient_to: string | null;
 };
@@ -66,7 +68,7 @@ export default async function SellerAnalyticsPage() {
       supabase
         .from("orders")
         .select(
-          "id, total_cents, price_cents, status, placed_at, released_at, sku:skus!orders_sku_id_fkey(id, slug, year, brand, product, gradient_from, gradient_to)",
+          "id, total_cents, price_cents, status, placed_at, released_at, sku:skus!orders_sku_id_fkey(id, slug, year, brand, product, image_url, gradient_from, gradient_to)",
         )
         .eq("seller_id", user.id)
         .gte("placed_at", prevSinceIso)
@@ -295,14 +297,7 @@ export default async function SellerAnalyticsPage() {
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs font-bold text-white/80">
                     {i + 1}
                   </div>
-                  <div
-                    className="flex h-9 w-7 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-                    style={{
-                      background: `linear-gradient(135deg, ${row.sku.gradient_from ?? "#475569"}, ${row.sku.gradient_to ?? "#0f172a"})`,
-                    }}
-                  >
-                    {row.sku.brand.slice(0, 4).toUpperCase()}
-                  </div>
+                  <SkuThumb sku={row.sku} className="h-9 w-7 rounded" alt={`${row.sku.year} ${row.sku.brand} ${row.sku.product}`} />
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/product/${row.sku.slug}`}

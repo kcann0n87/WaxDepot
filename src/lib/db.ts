@@ -133,7 +133,7 @@ export async function getRecentSalesGlobal(limit = 8): Promise<
     id: string;
     soldAt: string;
     price: number;
-    sku: { slug: string; year: number; brand: string; product: string; gradient_from: string | null; gradient_to: string | null } | null;
+    sku: { slug: string; year: number; brand: string; product: string; image_url: string | null; gradient_from: string | null; gradient_to: string | null } | null;
   }[]
 > {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return [];
@@ -142,7 +142,7 @@ export async function getRecentSalesGlobal(limit = 8): Promise<
     const { data, error } = await supabase
       .from("sales")
       .select(
-        "id, sold_at, price_cents, sku:skus!sales_sku_id_fkey(slug, year, brand, product, gradient_from, gradient_to)",
+        "id, sold_at, price_cents, sku:skus!sales_sku_id_fkey(slug, year, brand, product, image_url, gradient_from, gradient_to)",
       )
       .order("sold_at", { ascending: false })
       .limit(limit);
@@ -158,6 +158,7 @@ export async function getRecentSalesGlobal(limit = 8): Promise<
           year: number;
           brand: string;
           product: string;
+          image_url: string | null;
           gradient_from: string | null;
           gradient_to: string | null;
         } | null) ?? null,

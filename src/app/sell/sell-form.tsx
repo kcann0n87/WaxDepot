@@ -13,6 +13,7 @@ import {
 import type { Sku } from "@/lib/data";
 import { CURRENT_USER_TIER, TIER_FEE } from "@/lib/fees";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
+import { SkuThumb } from "@/components/sku-thumb";
 import { createListing } from "../actions/listings";
 
 const FEE_RATE = TIER_FEE[CURRENT_USER_TIER];
@@ -112,14 +113,7 @@ export function SellForm({
           which SKU you're actually listing. Click "Change" to reset. */}
       {step > 1 && sku && (
         <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-700/40 bg-gradient-to-r from-amber-500/10 to-transparent p-4">
-          <div
-            className="flex h-14 w-12 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-            style={{
-              background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
-            }}
-          >
-            {sku.brand.slice(0, 4).toUpperCase()}
-          </div>
+          <SkuThumb sku={sku} className="h-14 w-12 rounded" alt={formatSkuTitle(sku)} />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-semibold tracking-[0.18em] text-amber-300/80 uppercase">
               You&apos;re listing
@@ -181,14 +175,7 @@ export function SellForm({
                 }}
                 className="flex w-full items-center gap-3 p-3 text-left transition hover:bg-white/[0.02]"
               >
-                <div
-                  className="flex h-12 w-10 items-center justify-center rounded text-[8px] font-bold text-white"
-                  style={{
-                    background: `linear-gradient(135deg, ${s.gradient[0]}, ${s.gradient[1]})`,
-                  }}
-                >
-                  {s.brand.slice(0, 4).toUpperCase()}
-                </div>
+                <SkuThumb sku={s} className="h-12 w-10 rounded" alt={formatSkuTitle(s)} />
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-white">{formatSkuTitle(s)}</div>
                   <div className="text-xs text-white/50">
@@ -310,14 +297,7 @@ export function SellForm({
         <Card title="3. Review listing" subtitle="Last check before it goes live">
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
             <div className="flex items-start gap-3">
-              <div
-                className="flex h-16 w-12 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
-                }}
-              >
-                {sku.brand.slice(0, 4).toUpperCase()}
-              </div>
+              <SkuThumb sku={sku} className="h-16 w-12 rounded" alt={formatSkuTitle(sku)} />
               <div>
                 <div className="font-bold text-white">{formatSkuTitle(sku)}</div>
                 <div className="text-sm text-white/60">

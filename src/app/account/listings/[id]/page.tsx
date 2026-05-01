@@ -7,6 +7,7 @@ import { ShipForm } from "./ship-form";
 import { BidActions } from "./bid-actions";
 import { ListingActions } from "./listing-actions";
 import { formatUSD, formatUSDFull } from "@/lib/utils";
+import { SkuThumb } from "@/components/sku-thumb";
 
 type ListingRow = {
   id: string;
@@ -18,8 +19,8 @@ type ListingRow = {
   status: "Active" | "Sold" | "Paused" | "Expired";
   created_at: string;
   sku:
-    | { slug: string; year: number; brand: string; product: string; sport: string; gradient_from: string | null; gradient_to: string | null }
-    | { slug: string; year: number; brand: string; product: string; sport: string; gradient_from: string | null; gradient_to: string | null }[]
+    | { slug: string; year: number; brand: string; product: string; sport: string; image_url: string | null; gradient_from: string | null; gradient_to: string | null }
+    | { slug: string; year: number; brand: string; product: string; sport: string; image_url: string | null; gradient_from: string | null; gradient_to: string | null }[]
     | null;
 };
 
@@ -48,7 +49,7 @@ export default async function ListingDetailPage({
   const { data: listing } = (await supabase
     .from("listings")
     .select(
-      "id, sku_id, seller_id, price_cents, shipping_cents, quantity, status, created_at, sku:skus!listings_sku_id_fkey(slug, year, brand, product, sport, gradient_from, gradient_to)",
+      "id, sku_id, seller_id, price_cents, shipping_cents, quantity, status, created_at, sku:skus!listings_sku_id_fkey(slug, year, brand, product, sport, image_url, gradient_from, gradient_to)",
     )
     .eq("id", id)
     .maybeSingle()) as { data: ListingRow | null };
@@ -130,14 +131,9 @@ export default async function ListingDetailPage({
             <div className="flex items-start gap-4">
               <Link
                 href={`/product/${sku.slug}`}
-                className="block h-20 w-16 shrink-0 overflow-hidden rounded text-[8px] font-bold text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${sku.gradient_from ?? "#475569"}, ${sku.gradient_to ?? "#0f172a"})`,
-                }}
+                className="block h-20 w-16 shrink-0 overflow-hidden rounded"
               >
-                <div className="flex h-full items-center justify-center">
-                  {sku.brand.slice(0, 4).toUpperCase()}
-                </div>
+                <SkuThumb sku={sku} className="h-full w-full" alt={`${sku.year} ${sku.brand} ${sku.product}`} />
               </Link>
               <div className="flex-1">
                 <Link

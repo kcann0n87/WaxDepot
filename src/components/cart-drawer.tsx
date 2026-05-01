@@ -6,6 +6,7 @@ import { Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
 import { useCart, groupBySeller, type CartItem } from "@/lib/cart";
 import { skus } from "@/lib/data";
 import { formatSkuTitle, formatUSD, formatUSDFull } from "@/lib/utils";
+import { SkuThumb } from "./sku-thumb";
 
 export function CartDrawer() {
   const [open, setOpen] = useState(false);
@@ -173,12 +174,9 @@ function CartRow({
       <Link
         href={`/product/${sku.slug}`}
         onClick={onLinkClick}
-        className="block h-16 w-12 shrink-0 overflow-hidden rounded border border-white/10 text-[7px] font-bold text-white"
-        style={{ background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})` }}
+        className="block h-16 w-12 shrink-0 overflow-hidden rounded border border-white/10"
       >
-        <div className="flex h-full items-center justify-center">
-          {sku.brand.slice(0, 4).toUpperCase()}
-        </div>
+        <SkuThumb sku={sku} className="h-full w-full" alt={formatSkuTitle(sku)} />
       </Link>
       <div className="min-w-0 flex-1">
         <Link

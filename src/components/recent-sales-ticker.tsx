@@ -3,6 +3,7 @@ import { Zap } from "lucide-react";
 import { Sport } from "@/lib/data";
 import { getRecentSalesGlobal } from "@/lib/db";
 import { formatSeasonYear, formatUSD } from "@/lib/utils";
+import { SkuThumb } from "./sku-thumb";
 
 /**
  * Live "tape" of completed sales across the marketplace, server-rendered
@@ -60,15 +61,7 @@ export async function RecentSalesTicker({ sport }: { sport?: Sport }) {
                   href={`/product/${sku.slug}`}
                   className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.02]"
                 >
-                  <div
-                    className="flex h-10 w-8 shrink-0 items-center justify-center rounded text-[7px] font-bold text-white"
-                    style={{
-                      background: `linear-gradient(135deg, ${sku.gradient_from ?? "#475569"}, ${sku.gradient_to ?? "#0f172a"})`,
-                    }}
-                    aria-hidden
-                  >
-                    {sku.brand.slice(0, 4).toUpperCase()}
-                  </div>
+                  <SkuThumb sku={sku} className="h-10 w-8 rounded" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-white">
                       {formatSeasonYear(sku.year, sportFromSlug(sku.slug))} {sku.brand}{" "}

@@ -23,6 +23,7 @@ import { ShipForm } from "../../listings/[id]/ship-form";
 import { formatUSDFull } from "@/lib/utils";
 import { getTrackingUrl } from "@/lib/carriers";
 import { calcPayout } from "@/lib/fees";
+import { SkuThumb } from "@/components/sku-thumb";
 
 type OrderStatus =
   | "Charged"
@@ -70,6 +71,7 @@ type OrderRow = {
         brand: string;
         product: string;
         sport: string;
+        image_url: string | null;
         gradient_from: string | null;
         gradient_to: string | null;
       }
@@ -79,6 +81,7 @@ type OrderRow = {
         brand: string;
         product: string;
         sport: string;
+        image_url: string | null;
         gradient_from: string | null;
         gradient_to: string | null;
       }[]
@@ -101,7 +104,7 @@ export default async function OrderDetailPage({
   const { data: order } = (await supabase
     .from("orders")
     .select(
-      "*, sku:skus!orders_sku_id_fkey(slug, year, brand, product, sport, gradient_from, gradient_to)",
+      "*, sku:skus!orders_sku_id_fkey(slug, year, brand, product, sport, image_url, gradient_from, gradient_to)",
     )
     .eq("id", id)
     .maybeSingle()) as { data: OrderRow | null };
@@ -284,15 +287,10 @@ export default async function OrderDetailPage({
             <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap sm:gap-4">
               <Link
                 href={`/product/${sku.slug}`}
-                className="block h-20 w-16 shrink-0 overflow-hidden rounded text-[8px] font-bold text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${sku.gradient_from ?? "#475569"}, ${sku.gradient_to ?? "#0f172a"})`,
-                }}
+                className="block h-20 w-16 shrink-0 overflow-hidden rounded"
                 aria-label={`View ${sku.year} ${sku.brand} ${sku.product}`}
               >
-                <div className="flex h-full items-center justify-center">
-                  {sku.brand.slice(0, 4).toUpperCase()}
-                </div>
+                <SkuThumb sku={sku} className="h-full w-full" alt={`${sku.year} ${sku.brand} ${sku.product}`} />
               </Link>
               <div className="min-w-0 flex-1">
                 <Link
