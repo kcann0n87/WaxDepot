@@ -40,6 +40,22 @@ export async function createListing(formData: FormData): Promise<CreateListingRe
     } = await supabase.auth.getUser();
     if (!user) return { error: "You must be signed in to list a box." };
 
+    // Refuse to create the listing unless this seller can actually be paid
+    // out. The /sell page already gates the UI on this, so reaching here
+    // means someone called the action directly. Mirroring the gate server-
+    // side prevents orphan listings that would dead-end at checkout.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("stripe_charges_enabled")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile?.stripe_charges_enabled) {
+      return {
+        error:
+          "You need to finish payout setup before you can list. Visit /sell/payouts.",
+      };
+    }
+
     const { data, error } = await supabase
       .from("listings")
       .insert({
