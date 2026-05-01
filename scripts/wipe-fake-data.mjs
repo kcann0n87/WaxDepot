@@ -27,17 +27,20 @@ import { createClient } from "@supabase/supabase-js";
 const KEEP_SEED_SELLERS = process.argv.includes("--keep-seed-sellers");
 
 const SEED_SELLER_USERNAMES = [
-  // Match the usernames from scripts/seed-data.mjs. Update if you add more.
-  "hobbyhouse",
+  // Match the usernames from scripts/seed-data.mjs / seed.mjs. The demo
+  // accounts all have an @waxdepot.demo email — we double-check that
+  // suffix below before deleting, so a real user with a colliding
+  // username can't be wiped by accident.
+  "sealed_only",
   "boxbreaker_pro",
-  "watchlordreviews",
-  "mintsealedonly",
-  "alehow-70",
+  "northwestcards",
   "augies_collectibles",
-  "premiumwax",
-  "stop_n_break",
-  "primetime_breaks",
-  "wax_warden",
+  "luchpaka_0",
+  "thatdudedavid96",
+  "nbkisit",
+  "alehow-70",
+  "hobbyhouse",
+  "pristinepacks",
 ];
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -118,17 +121,42 @@ async function main() {
 
   // Optionally remove seed sellers.
   if (!KEEP_SEED_SELLERS) {
+    // Pull every profile that matches a known demo username.
     const { data: seedProfiles } = await supabase
       .from("profiles")
-      .select("id, username")
+      .select("id, username, is_admin")
       .in("username", SEED_SELLER_USERNAMES);
-    const ids = (seedProfiles ?? []).map((p) => p.id);
-    if (ids.length > 0) {
-      // Delete the profile rows (the auth.users CASCADE will handle the rest).
-      for (const id of ids) {
-        await supabase.auth.admin.deleteUser(id);
+
+    const candidates = seedProfiles ?? [];
+    const removed = [];
+    for (const p of candidates) {
+      // Safety: never delete an admin (the operator is admin and may
+      // have grabbed a colliding-looking demo username).
+      if (p.is_admin) {
+        console.log(`  ↳ skipping admin ${p.username} (would have been wiped)`);
+        continue;
       }
-      console.log(`  ✓ ${"seed sellers".padEnd(20)} ${ids.length} accounts removed`);
+
+      // Safety: only delete if this auth user's email is a known demo
+      // suffix. @waxmarket.demo is from the project's old name (kept here
+      // for legacy seeded accounts); @waxdepot.demo is the current one.
+      // This guards against a real signup that happens to use one of the
+      // demo usernames.
+      const DEMO_SUFFIXES = ["@waxdepot.demo", "@waxmarket.demo"];
+      const { data: authUser } = await supabase.auth.admin.getUserById(p.id);
+      const email = authUser?.user?.email ?? "";
+      if (!DEMO_SUFFIXES.some((s) => email.endsWith(s))) {
+        console.log(
+          `  ↳ skipping ${p.username} — email ${email} isn't a demo suffix`,
+        );
+        continue;
+      }
+
+      await supabase.auth.admin.deleteUser(p.id);
+      removed.push(p.username);
+    }
+    if (removed.length > 0) {
+      console.log(`  ✓ ${"seed sellers".padEnd(20)} ${removed.length} accounts removed`);
     }
   } else {
     console.log("  ↳ Kept seed seller accounts (use without --keep-seed-sellers to remove)");
