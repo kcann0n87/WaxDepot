@@ -266,8 +266,15 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
     if (!["Charged", "InEscrow"].includes(order.status))
       return { error: `Order is already ${order.status}.` };
 
+    // Writes happen via service role: ownership + state transition were just
+    // validated in code, so the wide-open "orders seller update" RLS policy
+    // is no longer the floor of defense. The notifications insert similarly
+    // can't use the regular auth client because the seller is creating a
+    // notification _for the buyer_ (different user_id).
+    const admin = serviceRoleClient();
+
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await admin
       .from("orders")
       .update({
         status: "Shipped",
@@ -282,7 +289,7 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
       const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
-      await supabase.from("notifications").insert({
+      await admin.from("notifications").insert({
         user_id: order.buyer_id,
         type: "order-shipped",
         title: "Your order shipped",
@@ -306,7 +313,7 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
     // flow still works as the safety net).
     const tracker = await createTracker(tracking, carrier, orderId);
     if (tracker?.est_delivery_date) {
-      await supabase
+      await admin
         .from("orders")
         .update({ estimated_delivery: tracker.est_delivery_date })
         .eq("id", orderId);
@@ -353,8 +360,11 @@ export async function markDelivered(formData: FormData): Promise<ActionResult> {
     if (order.status !== "Shipped")
       return { error: `Order is ${order.status} — can't mark delivered.` };
 
+    // Service role for the lifecycle write + cross-user notification.
+    const admin = serviceRoleClient();
+
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await admin
       .from("orders")
       .update({ status: "Delivered", delivered_at: now })
       .eq("id", orderId);
@@ -363,7 +373,7 @@ export async function markDelivered(formData: FormData): Promise<ActionResult> {
     const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
     const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
-      await supabase.from("notifications").insert({
+      await admin.from("notifications").insert({
         user_id: order.buyer_id,
         type: "order-delivered",
         title: "Package delivered",
@@ -388,8 +398,13 @@ export async function markDelivered(formData: FormData): Promise<ActionResult> {
  */
 export async function releaseOrderToSeller(orderId: string): Promise<ActionResult> {
   try {
-    const supabase = await createClient();
-    const { data: order } = await supabase
+    // Service role for the whole flow: this is called by the cron job (no
+    // user context) AND from confirmDelivery (buyer context). Either way,
+    // the lifecycle write to Released + the Stripe transfer + the sales
+    // insert + the seller notification all need privileges the regular
+    // auth client can't provide.
+    const admin = serviceRoleClient();
+    const { data: order } = await admin
       .from("orders")
       .select(
         "id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_transfer_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
@@ -402,7 +417,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
     if (order.stripe_transfer_id) return { error: "Transfer already created." };
 
     const now = new Date().toISOString();
-    const { error: statusErr } = await supabase
+    const { error: statusErr } = await admin
       .from("orders")
       .update({
         status: "Released",
@@ -414,7 +429,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
 
     if (stripe && order.payment_status === "paid" && order.stripe_charge_id) {
       try {
-        const { data: seller } = await supabase
+        const { data: seller } = await admin
           .from("profiles")
           .select("stripe_account_id, stripe_charges_enabled")
           .eq("id", order.seller_id)
@@ -441,13 +456,11 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
 
     // Record the sale in the public sales table so the homepage tape,
     // product-page recent-sales, and price-history chart all reflect this
-    // completed transaction. Goes through the service-role client because
-    // the sales table has RLS with no public-insert policy — only trusted
-    // server paths (this one + the Stripe webhook) should be able to add
-    // entries to the price tape. Best-effort; we already shipped the funds
-    // so a failure here just delays public visibility of the trade.
+    // completed transaction. The sales table has RLS with no public-insert
+    // policy — only trusted server paths (this one + the Stripe webhook)
+    // can add entries. Best-effort; we already shipped the funds so a
+    // failure here just delays public visibility of the trade.
     {
-      const admin = serviceRoleClient();
       const { data: orderForSku } = await admin
         .from("orders")
         .select("sku_id")
@@ -467,7 +480,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
     const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
       const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
-      await supabase.from("notifications").insert({
+      await admin.from("notifications").insert({
         user_id: order.seller_id,
         type: "payout-sent",
         title: "Funds released",
@@ -517,8 +530,12 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     if (!["Shipped", "Delivered"].includes(order.status))
       return { error: `Cannot confirm — order is ${order.status}.` };
 
+    // Service role for the lifecycle write + cross-user notification +
+    // Stripe-related profile read. Ownership was just validated.
+    const admin = serviceRoleClient();
+
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await admin
       .from("orders")
       .update({
         status: "Released",
@@ -538,7 +555,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
       order.stripe_charge_id
     ) {
       try {
-        const { data: seller } = await supabase
+        const { data: seller } = await admin
           .from("profiles")
           .select("stripe_account_id, stripe_charges_enabled")
           .eq("id", order.seller_id)
@@ -571,7 +588,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
     const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
-      await supabase.from("notifications").insert({
+      await admin.from("notifications").insert({
         user_id: order.seller_id,
         type: "payout-sent",
         title: "Funds released",
@@ -613,8 +630,15 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
     if (!["Charged", "InEscrow"].includes(order.status))
       return { error: `Order is ${order.status} — open a dispute instead.` };
 
+    // Service role for the cancel + listing reopen. Ownership was just
+    // validated; the regular auth client could in theory do the order
+    // update via the permissive buyer/seller policies, but if either
+    // party isn't actually the listing owner, the listing reopen would
+    // fail. Easier and safer to do both via service role.
+    const admin = serviceRoleClient();
+
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await admin
       .from("orders")
       .update({
         status: "Canceled",
@@ -626,13 +650,13 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
 
     // Re-open the listing if there was one (give seller back the inventory).
     if (order.listing_id) {
-      const { data: listing } = await supabase
+      const { data: listing } = await admin
         .from("listings")
         .select("status, quantity")
         .eq("id", order.listing_id)
         .maybeSingle();
       if (listing) {
-        await supabase
+        await admin
           .from("listings")
           .update({
             status: "Active",
