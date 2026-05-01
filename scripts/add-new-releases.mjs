@@ -122,73 +122,8 @@ const NEW_SKUS = [
     gradient: ["#0e7490", "#67e8f9"],
     stockx_key: "2025-Topps-Stadium-Club-Baseball-Hobby-Box",
   },
-  // ── Pokemon Mega Evolution era (the new gen) ─────────────────────────
-  {
-    slug: "2026-pokemon-mega-evolution-perfect-order-booster-box",
-    year: 2026,
-    brand: "Pokemon",
-    set_name: "Mega Evolution: Perfect Order",
-    product: "Booster Box",
-    sport: "Pokemon",
-    release_date: "2026-06-12",
-    description:
-      "First booster box of the Mega Evolution era. 36 packs per box, each pack with new Mega EX and Tera-style parallels.",
-    gradient: ["#5b21b6", "#f472b6"],
-    stockx_key: "2026-Pokemon-Mega-Evolution-Perfect-Order-Booster-Box",
-  },
-  {
-    slug: "2026-pokemon-mega-evolution-perfect-order-elite-trainer-box",
-    year: 2026,
-    brand: "Pokemon",
-    set_name: "Mega Evolution: Perfect Order",
-    product: "Elite Trainer Box",
-    sport: "Pokemon",
-    release_date: "2026-06-12",
-    description:
-      "Elite Trainer Box for Mega Evolution Perfect Order. 9 packs + dice + sleeves + a deck box.",
-    gradient: ["#7c3aed", "#fbcfe8"],
-    stockx_key: "2026-Pokemon-Mega-Evolution-Perfect-Order-Elite-Trainer-Box",
-  },
-  {
-    slug: "2026-pokemon-mega-evolution-ascended-heroes-elite-trainer-box",
-    year: 2026,
-    brand: "Pokemon",
-    set_name: "Mega Evolution: Ascended Heroes",
-    product: "Elite Trainer Box",
-    sport: "Pokemon",
-    release_date: "2026-09-25",
-    description:
-      "Second Mega Evolution-era ETB. 9 packs, Mega-EX promo, dice, sleeves.",
-    gradient: ["#1e40af", "#fde047"],
-    stockx_key: "2026-Pokemon-Mega-Evolution-Ascended-Heros-Elite-Trainer-Box",
-  },
-  {
-    slug: "2025-pokemon-mega-evolution-phantasmal-flames-booster-box",
-    year: 2025,
-    brand: "Pokemon",
-    set_name: "Mega Evolution: Phantasmal Flames",
-    product: "Booster Box",
-    sport: "Pokemon",
-    release_date: "2025-11-14",
-    description:
-      "Mega Evolution: Phantasmal Flames booster box, 36 packs of 11 cards each.",
-    gradient: ["#b91c1c", "#fb923c"],
-    stockx_key: "2025-Pokemon-Mega-Evolution-Phantasmal-Flames-Booster-Box",
-  },
-  {
-    slug: "2025-pokemon-mega-evolution-phantasmal-flames-elite-trainer-box",
-    year: 2025,
-    brand: "Pokemon",
-    set_name: "Mega Evolution: Phantasmal Flames",
-    product: "Elite Trainer Box",
-    sport: "Pokemon",
-    release_date: "2025-11-14",
-    description:
-      "Phantasmal Flames Elite Trainer Box. Includes 9 booster packs and a Mega-EX promo card.",
-    gradient: ["#9a3412", "#fcd34d"],
-    stockx_key: "2025-Pokemon-Mega-Evolution-Phantasmal-Flames-Elite-Trainer-Box",
-  },
   // ── Sports-focus expansion: premium NBA, missing Bowman Chrome ──
+  // (Pokemon SKUs intentionally not added — sports-only catalog.)
   // Note: Soccer (Panini Prizm Premier League etc.) requires the DB enum
   // to include 'Soccer' first. Run this in the Supabase SQL editor:
   //   ALTER TYPE sport ADD VALUE IF NOT EXISTS 'Soccer';

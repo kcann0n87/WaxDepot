@@ -105,7 +105,6 @@ function sportFromSlug(slug: string): Sport | undefined {
   if (lower.includes("baseball") || lower.includes("mlb")) return "MLB";
   if (lower.includes("football") || lower.includes("nfl")) return "NFL";
   if (lower.includes("hockey") || lower.includes("nhl")) return "NHL";
-  if (lower.includes("pokemon")) return "Pokemon";
   return undefined;
 }
 

@@ -1,4 +1,4 @@
-export type Sport = "NBA" | "MLB" | "NFL" | "NHL" | "Pokemon";
+export type Sport = "NBA" | "MLB" | "NFL" | "NHL";
 
 export type Sku = {
   id: string;
@@ -443,43 +443,6 @@ export const skus: Sku[] = [
     gradient: ["#000000", "#fbbf24"],
     description: "Upper Deck The Cup Hockey. The crown jewel — 1 pack of 6 cards, all hits.",
     imageUrl: "/products/2024-25-upper-deck-the-cup-hockey-hobby-box.jpg"
-  },
-  {
-    id: "33",
-    slug: "2025-pokemon-tcg-prismatic-evolutions-elite-trainer-box",
-    year: 2025,
-    brand: "Pokemon",
-    sport: "Pokemon",
-    set: "Prismatic Evolutions",
-    product: "Elite Trainer Box",
-    releaseDate: "2025-01-17",
-    gradient: ["#7c3aed", "#fbbf24"],
-    description: "Pokemon TCG Prismatic Evolutions ETB. Eevee-themed special set, 9 booster packs included.",
-    imageUrl: "/products/2025-pokemon-tcg-prismatic-evolutions-elite-trainer-box.jpg"
-  },
-  {
-    id: "34",
-    slug: "2025-pokemon-tcg-journey-together-booster-box",
-    year: 2025,
-    brand: "Pokemon",
-    sport: "Pokemon",
-    set: "Journey Together",
-    product: "Booster Box",
-    releaseDate: "2025-03-28",
-    gradient: ["#dc2626", "#0ea5e9"],
-    description: "Pokemon TCG Journey Together Booster Box. 36 packs of 10 cards each.",
-  },
-  {
-    id: "35",
-    slug: "2025-pokemon-tcg-destined-rivals-booster-box",
-    year: 2025,
-    brand: "Pokemon",
-    sport: "Pokemon",
-    set: "Destined Rivals",
-    product: "Booster Box",
-    releaseDate: "2025-05-30",
-    gradient: ["#be123c", "#1e3a8a"],
-    description: "Pokemon TCG Destined Rivals. Team Rocket-themed, trainer ex cards. 36 packs.",
   },
   {
     id: "36",
