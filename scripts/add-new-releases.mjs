@@ -188,6 +188,84 @@ const NEW_SKUS = [
     gradient: ["#9a3412", "#fcd34d"],
     stockx_key: "2025-Pokemon-Mega-Evolution-Phantasmal-Flames-Elite-Trainer-Box",
   },
+  // ── Sports-focus expansion: premium NBA, missing Bowman Chrome ──
+  // Note: Soccer (Panini Prizm Premier League etc.) requires the DB enum
+  // to include 'Soccer' first. Run this in the Supabase SQL editor:
+  //   ALTER TYPE sport ADD VALUE IF NOT EXISTS 'Soccer';
+  // then uncomment the soccer entry and re-run.
+  // {
+  //   slug: "2024-25-panini-prizm-premier-league-soccer-hobby-box",
+  //   year: 2024, brand: "Panini", set_name: "Prizm Premier League",
+  //   product: "Hobby Box", sport: "Soccer", release_date: "2025-04-23",
+  //   description: "EPL-licensed Prizm rookies + rainbow parallels.",
+  //   gradient: ["#0c4a6e", "#7dd3fc"],
+  //   stockx_key: "2024-25-Panini-Prizm-Premier-League-Soccer-Hobby-Box",
+  // },
+  {
+    slug: "2024-25-panini-flawless-basketball-hobby-box",
+    year: 2024,
+    brand: "Panini",
+    set_name: "Flawless",
+    product: "Hobby Box",
+    sport: "NBA",
+    release_date: "2025-12-10",
+    description:
+      "The most expensive NBA box money can buy. 10 cards including diamond-embedded autograph patches.",
+    gradient: ["#1e1b4b", "#fbbf24"],
+    stockx_key: "2024-25-Panini-Flawless-Basketball-Hobby-Box",
+  },
+  {
+    slug: "2025-bowman-chrome-baseball-hobby-box",
+    year: 2025,
+    brand: "Bowman",
+    set_name: "Chrome",
+    product: "Hobby Box",
+    sport: "MLB",
+    release_date: "2025-08-27",
+    description:
+      "Bowman Chrome flagship. The single biggest set for prospect chrome rookie cards and refractor autos.",
+    gradient: ["#475569", "#f87171"],
+    stockx_key: "2025-Bowman-Chrome-Baseball-Hobby-Box",
+  },
+  {
+    slug: "2025-topps-chrome-sapphire-edition-baseball-hobby-box",
+    year: 2025,
+    brand: "Topps",
+    set_name: "Chrome Sapphire Edition",
+    product: "Hobby Box",
+    sport: "MLB",
+    release_date: "2025-09-24",
+    description:
+      "Online-exclusive Topps Chrome variant on sapphire-blue stock. Limited print, premium parallels.",
+    gradient: ["#0f172a", "#3b82f6"],
+    stockx_key: "2025-Topps-Chrome-Sapphire-Edition-Baseball-Hobby-Box",
+  },
+  {
+    slug: "2024-25-panini-donruss-basketball-hobby-box",
+    year: 2024,
+    brand: "Panini",
+    set_name: "Donruss",
+    product: "Hobby Box",
+    sport: "NBA",
+    release_date: "2024-12-04",
+    description:
+      "Panini Donruss Basketball flagship. Optic Press Proofs, Rated Rookies, broadly accessible price point.",
+    gradient: ["#7c2d12", "#fde047"],
+    stockx_key: "2024-25-Panini-Donruss-Basketball-Hobby-Box",
+  },
+  {
+    slug: "2024-25-panini-hoops-basketball-hobby-box",
+    year: 2024,
+    brand: "Panini",
+    set_name: "Hoops",
+    product: "Hobby Box",
+    sport: "NBA",
+    release_date: "2024-11-13",
+    description:
+      "Panini Hoops Basketball. Entry-tier NBA with 4 autographs/memorabilia per box.",
+    gradient: ["#7c2d12", "#fb923c"],
+    stockx_key: "2024-25-Panini-Hoops-Basketball-Hobby-Box",
+  },
 ];
 
 async function fetchJpg(key) {

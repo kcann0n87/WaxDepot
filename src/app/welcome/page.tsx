@@ -13,7 +13,6 @@ const sports = [
   { id: "MLB", label: "Baseball", emoji: "⚾" },
   { id: "NFL", label: "Football", emoji: "🏈" },
   { id: "NHL", label: "Hockey", emoji: "🏒" },
-  { id: "Pokemon", label: "Pokemon", emoji: "🎴" },
 ];
 
 type Step = "intro" | "sports" | "notifications" | "follow" | "done";

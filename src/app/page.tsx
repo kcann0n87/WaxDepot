@@ -39,12 +39,12 @@ export default async function Home({
               Sealed Sports Cards · Est. 2026
             </div>
             <h1 className="font-display text-5xl leading-[1.05] font-black tracking-tight text-white lg:text-7xl">
-              The marketplace for{" "}
-              <span className="italic text-amber-400">serious</span> collectors.
+              The order book for sealed{" "}
+              <span className="italic text-amber-400">sports</span> wax.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
-              Bid, ask, and buy sealed wax with the transparency of a stock market. Real prices,
-              real provenance, real escrow.
+              Trade sealed cards like stocks. Real bid, real ask, real escrow — no eBay tax,
+              no chargebacks, no guesswork.
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Link

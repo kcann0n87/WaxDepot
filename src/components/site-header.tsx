@@ -6,7 +6,7 @@ import { LogoMark } from "./logo-mark";
 import { NotificationsBell } from "./notifications-bell";
 import { MobileSearch } from "./mobile-search";
 
-const sports = ["Releases", "NBA", "MLB", "NFL", "NHL", "Pokemon"];
+const sports = ["Releases", "NBA", "MLB", "NFL", "NHL"];
 
 export function SiteHeader() {
   return (
