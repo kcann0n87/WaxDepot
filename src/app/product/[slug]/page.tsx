@@ -6,6 +6,7 @@ import { BuyBidActions } from "@/components/buy-bid-actions";
 import { OrderBookDepth } from "@/components/order-book-depth";
 import { PresaleBanner } from "@/components/presale-banner";
 import { ProductJsonLd } from "@/components/product-jsonld";
+import { RealtimeOrderBook } from "@/components/realtime-order-book";
 import { PriceChart } from "@/components/price-chart";
 import { ProductImage } from "@/components/product-image";
 import { RecentlyViewed } from "@/components/recently-viewed";
@@ -177,6 +178,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <OrderBookDepth listings={listings} bids={bids} last={last} />
             </div>
           )}
+
+          {/* Live order-book sync. Subscribes to Supabase Realtime for
+              this SKU's listings + bids and triggers a server-side
+              re-render when anything changes. Renders nothing visible. */}
+          <RealtimeOrderBook skuId={sku.id} />
 
           <div className="mt-6 rounded-2xl border border-white/10 bg-[#101012] p-6">
             <div className="mb-4 flex items-end justify-between">

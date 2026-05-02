@@ -1,4 +1,15 @@
+import Image from "next/image";
 import { Sku } from "@/lib/data";
+
+// Sizes attribute per `size` prop — tells next/image which width to
+// fetch at each viewport. Important for keeping the AVIF/WebP variants
+// from being too large.
+const SIZES_FOR = {
+  sm: "48px",
+  md: "(max-width: 640px) 30vw, 200px",
+  lg: "(max-width: 768px) 80vw, 320px",
+  card: "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw",
+} as const;
 
 export function ProductImage({
   sku,
@@ -28,17 +39,18 @@ export function ProductImage({
       }}
     >
       {sku.imageUrl ? (
-        // object-contain (not cover) so the whole product is visible — box
-        // images come from a few sources at different aspect ratios, and
-        // cover ends up cropping heads/box-tops on portrait or wide shots.
-        // The gradient background fills any letterbox space so empty pixels
-        // look intentional rather than broken.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        // next/image gives us AVIF/WebP serving + responsive sizing.
+        // object-contain (not cover) so the whole product is visible —
+        // box images come from a few sources at different aspect ratios,
+        // and cover ends up cropping heads/box-tops on portrait or wide
+        // shots. Gradient bg fills letterbox space.
+        <Image
           src={sku.imageUrl}
           alt={`${sku.brand} ${sku.set} ${sku.product}`}
-          className="absolute inset-0 h-full w-full object-contain p-2"
-          loading="lazy"
+          fill
+          sizes={SIZES_FOR[size]}
+          className="object-contain p-2"
+          priority={size === "lg"}
         />
       ) : showText ? (
         <div className="px-3 text-center text-white drop-shadow-md">
