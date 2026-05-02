@@ -97,6 +97,15 @@ export function SignupForm({ next }: { next: string }) {
           className="text-white/80 underline decoration-white/20 transition hover:text-amber-300"
         >
           Terms of Service
+        </a>{" "}
+        and{" "}
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener"
+          className="text-white/80 underline decoration-white/20 transition hover:text-amber-300"
+        >
+          Privacy Policy
         </a>
         .
       </div>

@@ -1,10 +1,64 @@
 import Link from "next/link";
-import { ArrowUpRight, Hammer, ShieldCheck, Star } from "lucide-react";
+import { ArrowUpRight, Flame, Hammer, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { RecentSalesTicker } from "@/components/recent-sales-ticker";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { getCatalogWithPricing, getMarketplaceStats } from "@/lib/db";
 import { formatUSD, isPresale } from "@/lib/utils";
+import type { Sku } from "@/lib/data";
+
+/**
+ * Heat score for a SKU when there's no marketplace activity yet (or as a
+ * tiebreaker when there is). Pulls signal from objective data:
+ *   - release-date proximity (pre-release + just-released score highest)
+ *   - brand/set premium tier (the boxes the hobby talks about)
+ *   - rookie class premium (2025-26 NBA Cooper Flagg era)
+ *
+ * Higher = hotter. Range roughly 0..15.
+ */
+const PREMIUM_SETS = new Set([
+  "National Treasures",
+  "Flawless",
+  "Immaculate",
+  "The Cup",
+  "Five Star",
+  "Pristine",
+  "Sterling",
+  "Inception",
+]);
+const FLAGSHIP_SETS = new Set([
+  "Chrome",
+  "Cosmic Chrome",
+  "Bowman",
+  "Bowman Chrome",
+  "Prizm",
+  "Series 1",
+]);
+
+function heatScore(sku: Sku & { lowestAsk?: number | null }, now: Date): number {
+  let score = 0;
+
+  // Release-date proximity. Pre-releases inside 60d and just-released inside 90d both score.
+  const release = new Date(sku.releaseDate);
+  const days = (release.getTime() - now.getTime()) / 86400000;
+  if (days >= 0 && days <= 30) score += 6; // hot pre-release
+  else if (days >= 0 && days <= 60) score += 4;
+  else if (days < 0 && days >= -60) score += 4; // just released
+  else if (days < 0 && days >= -180) score += 2;
+
+  // Set tier
+  if (PREMIUM_SETS.has(sku.set)) score += 3;
+  else if (FLAGSHIP_SETS.has(sku.set)) score += 2;
+
+  // 2025-26 NBA rookie class is a known premium right now
+  if (sku.sport === "NBA" && sku.year === 2025) score += 2;
+
+  // Hobby-only configurations are hotter than retail tiers in the order book
+  if (sku.product === "Hobby Box" || sku.product === "Jumbo Box") score += 1;
+  if (sku.product === "FotL Hobby Box") score += 2;
+
+  return score;
+}
 
 export default async function Home({
   searchParams,
@@ -55,6 +109,24 @@ export default async function Home({
 
   const showStats =
     stats.escrowUsd !== null || stats.sellerCount !== null || stats.positivePct !== null;
+
+  // "Marketplace activity" check — if no SKU has a lowest-ask AND no SKU has
+  // a recent sale, the order book is essentially empty (e.g. brand-new
+  // launch, or just-wiped demo). In that case we replace the curated
+  // "Trending / Just dropped" sections with a single "What's Hot" reading
+  // ranked by objective signals (release calendar, set tier, rookie class).
+  // The user still gets a useful, populated home page.
+  const hasMarketplaceActivity = filtered.some(
+    (s) => s.lowestAsk !== null || s.lastSale !== null,
+  );
+  const now = new Date();
+  const whatsHot = !hasMarketplaceActivity
+    ? [...filtered]
+        .map((s) => ({ sku: s, heat: heatScore(s, now) }))
+        .sort((a, b) => b.heat - a.heat)
+        .slice(0, 8)
+        .map((x) => x.sku)
+    : [];
 
   return (
     <div>
@@ -160,6 +232,84 @@ export default async function Home({
         {isBrowseMode ? (
           /* BROWSE MODE: flat sortable grid of every product matching the filter. */
           <BrowseGrid filtered={filtered} sort={sort} sport={sport} year={year} />
+        ) : !hasMarketplaceActivity ? (
+          /* EMPTY-STATE MODE: order book has no listings + no sales yet.
+             Show "What's Hot" ranked by objective market signals so the
+             home page still has content while liquidity builds. */
+          <>
+            <section className="mb-6 rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-500/10 to-transparent p-6">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-300">
+                  <Sparkles size={20} />
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-display text-xl font-black tracking-tight text-white">
+                    The order book is just opening up.
+                  </h2>
+                  <p className="mt-1 text-sm text-white/70">
+                    No listings yet — be one of the first sellers and lock in the
+                    lowest ask before competition shows up. Or browse what the
+                    hobby&apos;s talking about, ranked by release calendar +
+                    product tier.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link
+                      href="/sell"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
+                    >
+                      List the first box
+                    </Link>
+                    <Link
+                      href="/how-it-works"
+                      className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-amber-400/40 hover:text-amber-300"
+                    >
+                      How it works
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {whatsHot.length > 0 && (
+              <Section
+                eyebrow="What's hot"
+                title="The hobby's reading"
+                subtitle="Ranked by release calendar, set tier, and 2025-26 rookie class — not user activity yet"
+              >
+                <Grid>
+                  {whatsHot.slice(0, 4).map((s) => (
+                    <ProductCard
+                      key={s.id}
+                      sku={s}
+                      lowestAsk={s.lowestAsk}
+                      lastSale={s.lastSale}
+                      presale={isPresale(s.releaseDate)}
+                    />
+                  ))}
+                </Grid>
+              </Section>
+            )}
+
+            {whatsHot.length > 4 && (
+              <Section
+                eyebrow="Also worth watching"
+                title="Premium and pre-release"
+                subtitle="Box configurations the market typically pays a premium for"
+              >
+                <Grid>
+                  {whatsHot.slice(4, 8).map((s) => (
+                    <ProductCard
+                      key={s.id}
+                      sku={s}
+                      lowestAsk={s.lowestAsk}
+                      lastSale={s.lastSale}
+                      presale={isPresale(s.releaseDate)}
+                    />
+                  ))}
+                </Grid>
+              </Section>
+            )}
+          </>
         ) : (
           <>
             {releases.length > 0 && (

@@ -17,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import { updateProfile } from "../../auth/actions";
+import { deleteAccount } from "../../actions/account";
 
 type CardOnFile = { id: string; brand: string; last4: string; exp: string; isDefault: boolean };
 type Address = {
@@ -56,6 +57,12 @@ export function SettingsClient({
 
   const [profileMsg, setProfileMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Delete-account flow state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [deletePending, startDelete] = useTransition();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -250,11 +257,81 @@ export function SettingsClient({
         <div className="rounded-lg border border-rose-700/40 bg-rose-500/10 p-4">
           <div className="text-sm font-bold text-white">Delete account</div>
           <div className="text-xs text-white/60">
-            Permanently remove your account and all data. Active orders and pending payouts must be settled first.
+            Permanently removes your profile and personal data. Active orders,
+            listings, and bids must be settled first. Financial records (released
+            sales, payouts) are retained for 7 years per the{" "}
+            <Link href="/privacy" className="text-amber-300 hover:underline">
+              Privacy Policy
+            </Link>
+            .
           </div>
-          <button className="mt-2 rounded-md border border-rose-700/50 bg-[#101012] px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/10">
-            Request account deletion
-          </button>
+
+          {!deleteOpen && (
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteOpen(true);
+                setDeleteErr(null);
+              }}
+              className="mt-2 rounded-md border border-rose-700/50 bg-[#101012] px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/10"
+            >
+              Delete account…
+            </button>
+          )}
+
+          {deleteOpen && (
+            <div className="mt-4 space-y-3 rounded-md border border-rose-700/40 bg-[#101012] p-4">
+              <p className="text-xs text-white/80">
+                Type your username{" "}
+                <code className="rounded bg-rose-500/15 px-1 py-0.5 font-mono text-rose-200">
+                  {initialUsername}
+                </code>{" "}
+                to confirm. This cannot be undone.
+              </p>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder="username"
+                autoComplete="off"
+                className="w-full rounded-md border border-rose-700/40 bg-rose-500/5 px-3 py-2 text-sm font-mono text-rose-100 placeholder:text-white/30 focus:border-rose-500 focus:outline-none"
+              />
+              {deleteErr && (
+                <div className="rounded-md border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  {deleteErr}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={deletePending || deleteConfirm.trim() === ""}
+                  onClick={() => {
+                    setDeleteErr(null);
+                    startDelete(async () => {
+                      const res = await deleteAccount(deleteConfirm);
+                      if (res?.error) setDeleteErr(res.error);
+                      // success path: server action redirected; no-op here
+                    });
+                  }}
+                  className="rounded-md bg-rose-500 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-rose-500/20 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletePending ? "Deleting…" : "Permanently delete my account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteOpen(false);
+                    setDeleteConfirm("");
+                    setDeleteErr(null);
+                  }}
+                  disabled={deletePending}
+                  className="rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Section>
     </div>

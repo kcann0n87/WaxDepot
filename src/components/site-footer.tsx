@@ -38,9 +38,10 @@ export function SiteFooter() {
         <FooterCol
           title="Help"
           links={[
-            { label: "Help center", href: "/help" },
+            { label: "How it works", href: "/how-it-works" },
+            { label: "FAQ", href: "/faq" },
             { label: "Buyer protection", href: "/help/buying/buyer-protection" },
-            { label: "Fees", href: "/help/selling/fees" },
+            { label: "Help center", href: "/help" },
             { label: "Contact support", href: "/help/contact" },
           ]}
         />
@@ -48,15 +49,18 @@ export function SiteFooter() {
       <div className="border-t border-white/5">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-[11px] text-white/50">
           <span>© {new Date().getFullYear()} WaxDepot · waxdepot.io</span>
-          <span className="flex items-center gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             <Link href="/terms" className="transition hover:text-white">
-              Terms of Service
+              Terms
             </Link>
-            <Link
-              href="/help/buying/buyer-protection"
-              className="transition hover:text-white"
-            >
-              Buyer Protection
+            <Link href="/privacy" className="transition hover:text-white">
+              Privacy
+            </Link>
+            <Link href="/how-it-works" className="transition hover:text-white">
+              How it works
+            </Link>
+            <Link href="/faq" className="transition hover:text-white">
+              FAQ
             </Link>
             <Link
               href="/help/contact"
