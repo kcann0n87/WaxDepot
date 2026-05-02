@@ -6,6 +6,7 @@ import { Analytics } from "@/components/analytics";
 import { MobileNav } from "@/components/mobile-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteJsonLd } from "@/components/site-jsonld";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const playfair = Playfair_Display({
@@ -79,6 +80,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Suspense fallback={null}>
           <Analytics />
         </Suspense>
+        {/* Site-wide Organization + WebSite JSON-LD for Google Knowledge
+            Graph + sitelinks search box. Renders nothing visible. */}
+        <SiteJsonLd />
         <SiteHeader />
         <main id="main" tabIndex={-1} className="flex-1 outline-none">{children}</main>
         <SiteFooter />

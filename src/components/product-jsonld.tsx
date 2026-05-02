@@ -56,7 +56,7 @@ export function ProductJsonLd({
           }
         : undefined;
 
-  const data = {
+  const productData = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: formatSkuTitle(sku),
@@ -71,11 +71,51 @@ export function ProductJsonLd({
     ...(offers ? { offers } : {}),
   };
 
+  // Breadcrumb structured data: shows up under product results in Google
+  // SERP as "WaxDepot › NBA › Topps › 2025-26 Topps Chrome…" giving the
+  // user a sense of the path before they click.
+  const breadcrumbData = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "WaxDepot",
+        item: BASE,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: sku.sport,
+        item: `${BASE}/?sport=${sku.sport}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: sku.brand,
+        item: `${BASE}/search?q=${encodeURIComponent(sku.brand)}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 4,
+        name: formatSkuTitle(sku),
+        item: url,
+      },
+    ],
+  };
+
   return (
-    <script
-      type="application/ld+json"
-      // Stringified once at render. Schema.org JSON-LD is allowed in body.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        // Stringified once at render. Schema.org JSON-LD is allowed in body.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbData) }}
+      />
+    </>
   );
 }
