@@ -31,7 +31,16 @@ export default async function AdminOrdersPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="font-display text-3xl font-black text-white">Orders</h1>
-        <span className="text-xs text-white/60">{orders?.length ?? 0} shown</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/60">{orders?.length ?? 0} shown</span>
+          <a
+            href="/admin/orders/export"
+            download
+            className="rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300"
+          >
+            Download CSV
+          </a>
+        </div>
       </div>
 
       {/* Filter row */}
