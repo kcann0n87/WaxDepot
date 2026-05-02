@@ -180,7 +180,7 @@ export default function TermsPage() {
             order page.
           </p>
           <p>
-            Items priced at $200+ require <strong>signature confirmation</strong>.
+            Items priced at $500+ require <strong>signature confirmation</strong>.
             Items priced at $1,000+ require <strong>signature confirmation and
             insurance for the full sale value</strong>. Failure to insure or
             obtain signature is at the seller&apos;s risk and forfeits Buyer
