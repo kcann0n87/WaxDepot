@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Package, ShieldCheck } from "lucide-react";
@@ -99,7 +100,38 @@ export default async function MessageThreadPage({
                 <span className="text-white/60">·</span>
                 <span className="text-white/60">{formatTs(m.ts)}</span>
               </div>
-              <p className="text-sm whitespace-pre-line text-white/90">{m.text}</p>
+              {m.text && (
+                <p className="text-sm whitespace-pre-line text-white/90">{m.text}</p>
+              )}
+              {m.imageUrls && m.imageUrls.length > 0 && (
+                <div
+                  className={`mt-2 grid gap-1.5 ${
+                    m.imageUrls.length === 1
+                      ? "max-w-xs"
+                      : m.imageUrls.length === 2
+                        ? "grid-cols-2 max-w-md"
+                        : "grid-cols-3 max-w-lg"
+                  }`}
+                >
+                  {m.imageUrls.map((url, i) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative block aspect-square overflow-hidden rounded-md border border-white/10 bg-[#101012] transition hover:border-amber-400/40"
+                    >
+                      <Image
+                        src={url}
+                        alt={`Attachment ${i + 1}`}
+                        fill
+                        sizes="(max-width: 768px) 33vw, 200px"
+                        className="object-cover transition group-hover:scale-105"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
               {m.systemEvent && (
                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.02] px-2.5 py-1 text-xs">
                   {m.systemEvent.kind === "shipped" && (

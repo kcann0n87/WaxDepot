@@ -6,6 +6,54 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 
+// Structural type for Stripe Checkout shipping_options. Pulling the named
+// type from the Stripe SDK across versions has been finicky; the inline
+// shape here matches the `shipping_rate_data` form we actually use.
+type CheckoutShippingOption = {
+  shipping_rate_data: {
+    display_name: string;
+    type: "fixed_amount";
+    fixed_amount: { amount: number; currency: string };
+    metadata?: Record<string, string>;
+  };
+};
+
+/**
+ * Build the Stripe `shipping_options` array for a listing. Sellers can
+ * configure 1–3 tiers in `listing_shipping_options`; if for any reason the
+ * row is missing (legacy listings before migration 0009 ran), fall back to
+ * the listing's own `shipping_cents` so checkout never breaks.
+ */
+async function buildShippingOptionsForListing(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  listingId: string,
+  fallbackShippingCents: number,
+): Promise<CheckoutShippingOption[]> {
+  const { data: rows } = await supabase
+    .from("listing_shipping_options")
+    .select("name, shipping_cents, sort_order")
+    .eq("listing_id", listingId)
+    .order("sort_order", { ascending: true });
+
+  const options =
+    rows && rows.length > 0
+      ? rows.map((r) => ({ name: String(r.name), cents: Number(r.shipping_cents) }))
+      : fallbackShippingCents > 0
+        ? [{ name: "Standard shipping", cents: fallbackShippingCents }]
+        : [];
+
+  return options.map((o) => ({
+    shipping_rate_data: {
+      display_name: o.name,
+      type: "fixed_amount" as const,
+      fixed_amount: { amount: o.cents, currency: "usd" },
+      // Stash the option name so the webhook can write it back onto the
+      // order without another DB lookup.
+      metadata: { waxdepot_shipping_name: o.name },
+    },
+  }));
+}
+
 async function getOrigin(): Promise<string> {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
   const h = await headers();
@@ -128,6 +176,11 @@ export async function createBuyNowCheckout(formData: FormData): Promise<Checkout
     }
 
     const origin = await getOrigin();
+    const shippingOptions = await buildShippingOptionsForListing(
+      supabase,
+      listing.id,
+      listing.shipping_cents,
+    );
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -147,17 +200,7 @@ export async function createBuyNowCheckout(formData: FormData): Promise<Checkout
         },
       ],
       shipping_address_collection: { allowed_countries: ["US"] },
-      ...(listing.shipping_cents > 0 && {
-        shipping_options: [
-          {
-            shipping_rate_data: {
-              display_name: "Standard shipping",
-              type: "fixed_amount" as const,
-              fixed_amount: { amount: listing.shipping_cents, currency: "usd" },
-            },
-          },
-        ],
-      }),
+      ...(shippingOptions.length > 0 && { shipping_options: shippingOptions }),
       payment_intent_data: {
         metadata: { waxdepot_order_id: orderId },
       },
@@ -231,6 +274,27 @@ export async function createCheckoutForOrder(formData: FormData): Promise<Checko
     if (!sku) return { error: "Product not found." };
 
     const origin = await getOrigin();
+    const shippingOptions = order.listing_id
+      ? await buildShippingOptionsForListing(
+          supabase,
+          order.listing_id,
+          order.shipping_cents,
+        )
+      : order.shipping_cents > 0
+        ? [
+            {
+              shipping_rate_data: {
+                display_name: "Standard shipping",
+                type: "fixed_amount" as const,
+                fixed_amount: {
+                  amount: order.shipping_cents,
+                  currency: "usd",
+                },
+                metadata: { waxdepot_shipping_name: "Standard shipping" },
+              },
+            } satisfies CheckoutShippingOption,
+          ]
+        : [];
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -250,17 +314,7 @@ export async function createCheckoutForOrder(formData: FormData): Promise<Checko
         },
       ],
       shipping_address_collection: { allowed_countries: ["US"] },
-      ...(order.shipping_cents > 0 && {
-        shipping_options: [
-          {
-            shipping_rate_data: {
-              display_name: "Standard shipping",
-              type: "fixed_amount" as const,
-              fixed_amount: { amount: order.shipping_cents, currency: "usd" },
-            },
-          },
-        ],
-      }),
+      ...(shippingOptions.length > 0 && { shipping_options: shippingOptions }),
       payment_intent_data: {
         metadata: { waxdepot_order_id: order.id },
       },

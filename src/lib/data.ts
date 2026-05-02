@@ -66,6 +66,7 @@ export const skus: Sku[] = [
     releaseDate: "2026-03-15",
     gradient: ["#dc2626", "#facc15"],
     description: "The flagship Prizm Basketball release. 12 packs per box, 12 cards per pack, on-card autos.",
+    imageUrl: "/products/2025-26-panini-prizm-basketball-hobby-box.jpg",
   },
   {
     id: "3",
@@ -78,6 +79,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-04-30",
     gradient: ["#2563eb", "#22d3ee"],
     description: "Bowman Baseball Hobby Jumbo. 32-card packs, 3 autos guaranteed, the prospecting flagship.",
+    imageUrl: "/products/2025-bowman-baseball-hobby-jumbo-box.jpg",
   },
   {
     id: "4",
@@ -181,6 +183,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-03-05",
     gradient: ["#000000", "#a78bfa"],
     description: "Premium Immaculate Basketball. 5 autos or memorabilia per box. High-end product.",
+    imageUrl: "/products/2024-25-panini-immaculate-basketball-hobby-box.jpg",
   },
   {
     id: "12",
@@ -232,6 +235,7 @@ export const skus: Sku[] = [
     releaseDate: "2026-03-08",
     gradient: ["#7f1d1d", "#000000"],
     description: "Prizm Basketball First Off The Line. Exclusive parallels and on-card autos. Limited release.",
+    imageUrl: "/products/2025-26-panini-prizm-basketball-fotl-hobby-box.jpg",
   },
   {
     id: "16",
@@ -257,6 +261,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-04-30",
     gradient: ["#581c87", "#22d3ee"],
     description: "Panini Spectra Basketball. Tmall-exclusive style chrome refractor parallels.",
+    imageUrl: "/products/2024-25-panini-spectra-basketball-hobby-box.jpg",
   },
   {
     id: "18",
@@ -282,6 +287,7 @@ export const skus: Sku[] = [
     releaseDate: "2024-10-16",
     gradient: ["#1e3a8a", "#dc2626"],
     description: "Topps Update Series Baseball. Rookie debuts and traded players. 24 packs per box.",
+    imageUrl: "/products/2024-topps-update-baseball-hobby-box.jpg",
   },
   {
     id: "20",
@@ -320,6 +326,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-08-13",
     gradient: ["#374151", "#a78bfa"],
     description: "Bowman Platinum Baseball. Foil-enhanced prospects, 1 auto per box.",
+    imageUrl: "/products/2025-bowman-platinum-baseball-hobby-box.jpg",
   },
   {
     id: "23",
@@ -332,6 +339,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-12-04",
     gradient: ["#0e7490", "#84cc16"],
     description: "Topps Chrome Update Baseball. Refractor parallels of update set rookies and stars.",
+    imageUrl: "/products/2025-topps-chrome-update-baseball-hobby-box.jpg",
   },
   {
     id: "24",
@@ -344,6 +352,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-09-10",
     gradient: ["#9a3412", "#fbbf24"],
     description: "Panini Donruss Football Hobby. Rated rookies, optic press proofs, 24 packs per box.",
+    imageUrl: "/products/2025-panini-donruss-football-hobby-box.jpg",
   },
   {
     id: "25",
@@ -369,6 +378,7 @@ export const skus: Sku[] = [
     releaseDate: "2026-01-21",
     gradient: ["#1e40af", "#facc15"],
     description: "Panini Contenders Football. Rookie Ticket autos. The hobby's signature rookie auto chase.",
+    imageUrl: "/products/2025-panini-contenders-football-hobby-box.jpg",
   },
   {
     id: "27",
@@ -394,6 +404,7 @@ export const skus: Sku[] = [
     releaseDate: "2026-04-15",
     gradient: ["#1f2937", "#f43f5e"],
     description: "Immaculate Football. 5 autos or relics per box. Premium high-end release.",
+    imageUrl: "/products/2025-panini-immaculate-football-hobby-box.jpg",
   },
   {
     id: "29",
@@ -419,6 +430,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-04-02",
     gradient: ["#7c2d12", "#f5d0fe"],
     description: "Upper Deck SP Authentic Hockey. Future Watch rookie autos. The hobby's premier rookie chase.",
+    imageUrl: "/products/2024-25-upper-deck-sp-authentic-hockey-hobby-box.jpg",
   },
   {
     id: "31",
@@ -431,6 +443,7 @@ export const skus: Sku[] = [
     releaseDate: "2025-06-04",
     gradient: ["#0c4a6e", "#fef08a"],
     description: "Upper Deck SP Hockey. Premium rookie autos and patches. 16 packs per box.",
+    imageUrl: "/products/2024-25-upper-deck-sp-hockey-hobby-box.jpg",
   },
   {
     id: "32",
@@ -482,6 +495,7 @@ export const skus: Sku[] = [
     releaseDate: "2026-04-09",
     gradient: ["#dc2626", "#10b981"],
     description: "Panini Prizm Monopoly Basketball. Property-themed parallels. Limited release.",
+    imageUrl: "/products/2025-26-panini-prizm-monopoly-basketball-hobby-box.jpg",
   },
   {
     id: "39",

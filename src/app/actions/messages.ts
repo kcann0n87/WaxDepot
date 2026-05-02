@@ -25,6 +25,7 @@ export type MessageItem = {
   fromYou: boolean;
   text: string;
   ts: string;
+  imageUrls?: string[];
   systemEvent?: { kind: string; detail: string | null };
 };
 
@@ -158,7 +159,7 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
 
     const { data: msgs } = await supabase
       .from("messages")
-      .select("id, from_role, text, ts, system_event_kind, system_event_detail")
+      .select("id, from_role, text, ts, image_urls, system_event_kind, system_event_detail")
       .eq("conversation_id", id)
       .order("ts", { ascending: true });
 
@@ -184,6 +185,7 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
           (!youAreBuyer && m.from_role !== "buyer"),
         text: m.text,
         ts: m.ts,
+        imageUrls: Array.isArray(m.image_urls) ? (m.image_urls as string[]) : undefined,
         systemEvent: m.system_event_kind
           ? { kind: m.system_event_kind, detail: m.system_event_detail }
           : undefined,
@@ -198,9 +200,17 @@ export async function getConversation(id: string): Promise<ConversationDetail | 
 export async function sendMessage(
   conversationId: string,
   text: string,
+  imageUrls?: string[],
 ): Promise<{ ok: boolean; error?: string }> {
   const trimmed = text.trim();
-  if (!trimmed) return { ok: false, error: "Type a message first." };
+  const images = (imageUrls ?? []).filter(
+    (u): u is string => typeof u === "string" && u.length > 0,
+  );
+  // Allow empty text if there's at least one image attached.
+  if (!trimmed && images.length === 0)
+    return { ok: false, error: "Type a message or attach an image." };
+  if (images.length > 6)
+    return { ok: false, error: "Max 6 images per message." };
 
   try {
     const supabase = await createClient();
@@ -224,8 +234,11 @@ export async function sendMessage(
     const { error: msgErr } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       from_role: fromRole,
+      // Postgres CHECK on `text NOT NULL` requires non-null, so when the
+      // user only sends images we store an empty string.
       text: trimmed,
       ts: now,
+      image_urls: images.length > 0 ? images : null,
     });
     if (msgErr) throw msgErr;
 
@@ -240,6 +253,77 @@ export async function sendMessage(
   } catch (e) {
     console.error("sendMessage failed:", e);
     return { ok: false, error: "Could not send the message." };
+  }
+}
+
+/**
+ * Upload one or more images for use in a message. Returns the public URLs;
+ * the caller then passes them to `sendMessage(text, urls)`. Splitting the
+ * upload from the send lets users stage images, see previews, and remove
+ * any before sending.
+ *
+ * Files are stored under the user's folder in the public `message-
+ * attachments` bucket — RLS ensures users can only write into their own
+ * folder.
+ */
+export async function uploadMessageAttachments(
+  formData: FormData,
+): Promise<{ ok: boolean; urls?: string[]; error?: string }> {
+  const files = formData.getAll("files").filter((v): v is File => v instanceof File);
+  if (files.length === 0) return { ok: false, error: "No files received." };
+  if (files.length > 6) return { ok: false, error: "Max 6 images per upload." };
+
+  const allowedExt = new Map<string, string>([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/gif", "gif"],
+  ]);
+
+  for (const f of files) {
+    if (f.size === 0) return { ok: false, error: `${f.name} is empty.` };
+    if (f.size > 10 * 1024 * 1024)
+      return { ok: false, error: `${f.name}: max 10MB per image.` };
+    if (!allowedExt.has(f.type))
+      return { ok: false, error: `${f.name}: only JPG, PNG, WebP, or GIF.` };
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "You must be signed in." };
+
+    const urls: string[] = [];
+    for (const f of files) {
+      const ext = allowedExt.get(f.type)!;
+      const stamp = Date.now().toString(36);
+      const rand = Math.random().toString(36).slice(2, 8);
+      const path = `${user.id}/${stamp}-${rand}.${ext}`;
+      const buffer = Buffer.from(await f.arrayBuffer());
+      const { error } = await supabase.storage
+        .from("message-attachments")
+        .upload(path, buffer, {
+          contentType: f.type,
+          upsert: false,
+          cacheControl: "31536000",
+        });
+      if (error) {
+        console.error("uploadMessageAttachments upload failed:", error);
+        return { ok: false, error: `Upload failed: ${error.message}` };
+      }
+      const { data: pub } = supabase.storage
+        .from("message-attachments")
+        .getPublicUrl(path);
+      if (!pub.publicUrl) return { ok: false, error: "Could not derive public URL." };
+      urls.push(pub.publicUrl);
+    }
+
+    return { ok: true, urls };
+  } catch (e) {
+    console.error("uploadMessageAttachments failed:", e);
+    return { ok: false, error: "Could not upload." };
   }
 }
 

@@ -1,16 +1,46 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, ShieldCheck } from "lucide-react";
+import { Check, Clock, Loader2, ShieldCheck } from "lucide-react";
 import { confirmDelivery } from "@/app/actions/orders";
 
-export function ConfirmDeliveryButton({ orderId }: { orderId: string }) {
+const RELEASE_GATE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Buyer-facing CTA that releases funds (skipping the 2-day auto-release
+ * cron). Gated to ≥24h after the seller marked the order shipped — nothing
+ * realistically arrives same-day, so the button shows a countdown instead.
+ * The server action mirrors this gate as defense in depth.
+ */
+export function ConfirmDeliveryButton({
+  orderId,
+  shippedAt,
+}: {
+  orderId: string;
+  shippedAt?: string | null;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Recompute on a 60s tick so the countdown ticks down while the user
+  // sits on the page. Cheap — no network calls in the interval.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const shippedMs = shippedAt ? new Date(shippedAt).getTime() : null;
+  const elapsed = shippedMs ? now - shippedMs : null;
+  const locked =
+    shippedMs !== null && elapsed !== null && elapsed < RELEASE_GATE_MS;
+  const hoursLeft =
+    locked && elapsed !== null
+      ? Math.max(1, Math.ceil((RELEASE_GATE_MS - elapsed) / 3_600_000))
+      : 0;
 
   if (confirmed) {
     return (
@@ -33,6 +63,7 @@ export function ConfirmDeliveryButton({ orderId }: { orderId: string }) {
   }
 
   const submit = () => {
+    if (locked) return;
     setError(null);
     const formData = new FormData();
     formData.set("orderId", orderId);
@@ -59,6 +90,15 @@ export function ConfirmDeliveryButton({ orderId }: { orderId: string }) {
           </p>
         </div>
       </div>
+      {locked && (
+        <div className="mt-3 flex items-center gap-2 rounded border border-white/10 bg-[#101012] px-3 py-2 text-xs text-white/70">
+          <Clock size={12} className="text-amber-300" />
+          <span>
+            Release available in <strong className="text-white">{hoursLeft} hour{hoursLeft === 1 ? "" : "s"}</strong> — the
+            order shipped less than a day ago.
+          </span>
+        </div>
+      )}
       {error && (
         <div className="mt-3 rounded border border-rose-700/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
           {error}
@@ -67,7 +107,8 @@ export function ConfirmDeliveryButton({ orderId }: { orderId: string }) {
       <div className="mt-3 flex gap-2">
         <button
           onClick={submit}
-          disabled={pending}
+          disabled={pending || locked}
+          title={locked ? `Available in ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}` : undefined}
           className="flex flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -81,7 +122,7 @@ export function ConfirmDeliveryButton({ orderId }: { orderId: string }) {
         </Link>
       </div>
       <div className="mt-2 text-[11px] text-amber-300/70">
-        Order {orderId} · auto-releases in 3 days if you take no action.
+        Order {orderId} · auto-releases 2 days after delivery if you take no action.
       </div>
     </div>
   );

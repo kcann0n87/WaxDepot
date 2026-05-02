@@ -7,7 +7,9 @@ import {
   ChevronRight,
   Lightbulb,
   Loader2,
+  Plus,
   Search,
+  Trash2,
 } from "lucide-react";
 import type { Sku } from "@/lib/data";
 import { CURRENT_USER_TIER, TIER_FEE } from "@/lib/fees";
@@ -21,6 +23,17 @@ type Step = 1 | 2 | 3 | 4;
 
 type CatalogItem = Sku & { lowestAsk: number | null; lastSale: number | null };
 
+type ShippingOption = { name: string; price: string };
+
+const MAX_SHIPPING_OPTIONS = 3;
+const DEFAULT_SHIPPING: ShippingOption[] = [{ name: "Standard", price: "0" }];
+// Templates the seller can one-click add. Free-form is also fine — they can
+// retype the name into anything they want.
+const SHIPPING_PRESETS: ShippingOption[] = [
+  { name: "Expedited", price: "10" },
+  { name: "Overnight", price: "25" },
+];
+
 export function SellForm({
   catalog,
   highestBidMap,
@@ -32,7 +45,9 @@ export function SellForm({
   const [query, setQuery] = useState("");
   const [skuId, setSkuId] = useState<string | null>(null);
   const [askPrice, setAskPrice] = useState<string>("");
-  const [shipping, setShipping] = useState<string>("0");
+  const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>(
+    DEFAULT_SHIPPING,
+  );
   const [quantity, setQuantity] = useState<string>("1");
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -63,13 +78,43 @@ export function SellForm({
   const fee = askNum * FEE_RATE;
   const payout = Math.max(askNum - fee, 0);
 
+  // Validate: every option needs a non-empty unique name and a numeric
+  // price (>=0). Filter empties before submitting; if nothing's left, that's
+  // a hard error.
+  const validShippingOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return shippingOptions
+      .map((o) => ({ name: o.name.trim(), price: o.price.trim() }))
+      .filter((o) => {
+        if (!o.name) return false;
+        const cents = Math.round(parseFloat(o.price || "0") * 100);
+        if (!Number.isFinite(cents) || cents < 0) return false;
+        const key = o.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [shippingOptions]);
+
   const handlePublish = () => {
     if (!sku) return;
+    if (validShippingOptions.length === 0) {
+      setSubmitError("Add at least one shipping option.");
+      return;
+    }
     setSubmitError(null);
     const formData = new FormData();
     formData.set("skuId", sku.id);
     formData.set("price", String(askNum));
-    formData.set("shipping", shipping);
+    formData.set(
+      "shippingOptions",
+      JSON.stringify(
+        validShippingOptions.map((o) => ({
+          name: o.name,
+          shippingCents: Math.round(parseFloat(o.price || "0") * 100),
+        })),
+      ),
+    );
     formData.set("quantity", quantity);
     startTransition(async () => {
       const result = await createListing(formData);
@@ -80,6 +125,24 @@ export function SellForm({
         setStep(4);
       }
     });
+  };
+
+  const updateShippingOption = (i: number, patch: Partial<ShippingOption>) => {
+    setShippingOptions((opts) =>
+      opts.map((o, j) => (j === i ? { ...o, ...patch } : o)),
+    );
+  };
+  const addShippingOption = (preset?: ShippingOption) => {
+    setShippingOptions((opts) =>
+      opts.length >= MAX_SHIPPING_OPTIONS
+        ? opts
+        : [...opts, preset ?? { name: "", price: "0" }],
+    );
+  };
+  const removeShippingOption = (i: number) => {
+    setShippingOptions((opts) =>
+      opts.length === 1 ? opts : opts.filter((_, j) => j !== i),
+    );
   };
 
   return (
@@ -225,21 +288,95 @@ export function SellForm({
             )}
           </label>
 
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className="text-sm font-semibold text-white/80">Shipping</span>
-              <select
-                value={shipping}
-                onChange={(e) => setShipping(e.target.value)}
-                className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white focus:border-amber-400/50 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-amber-400/20"
-              >
-                <option value="0">Free shipping</option>
-                <option value="10">$10 flat</option>
-                <option value="15">$15 flat</option>
-                <option value="calc">Calculated at checkout</option>
-              </select>
-            </label>
-            <label className="block">
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold text-white/80">
+                Shipping options
+              </span>
+              <span className="text-[11px] text-white/50">
+                Buyers pick at checkout · up to {MAX_SHIPPING_OPTIONS}
+              </span>
+            </div>
+            <div className="mt-2 space-y-2">
+              {shippingOptions.map((opt, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] p-2"
+                >
+                  <input
+                    type="text"
+                    value={opt.name}
+                    onChange={(e) =>
+                      updateShippingOption(i, { name: e.target.value })
+                    }
+                    placeholder="Standard"
+                    maxLength={40}
+                    className="flex-1 rounded border border-white/10 bg-[#101012] px-2.5 py-2 text-sm text-white placeholder:text-white/40 focus:border-amber-400/50 focus:outline-none"
+                  />
+                  <div className="relative">
+                    <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-white/50">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={opt.price}
+                      onChange={(e) =>
+                        updateShippingOption(i, { price: e.target.value })
+                      }
+                      className="w-24 rounded border border-white/10 bg-[#101012] px-2.5 py-2 pl-6 text-sm text-white focus:border-amber-400/50 focus:outline-none"
+                    />
+                  </div>
+                  {shippingOptions.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeShippingOption(i)}
+                      title="Remove this option"
+                      className="rounded border border-white/10 bg-[#101012] p-2 text-white/60 transition hover:border-rose-500/50 hover:text-rose-300"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : (
+                    <span className="w-10" />
+                  )}
+                </div>
+              ))}
+            </div>
+            {shippingOptions.length < MAX_SHIPPING_OPTIONS && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SHIPPING_PRESETS.filter(
+                  (p) =>
+                    !shippingOptions.some(
+                      (o) => o.name.trim().toLowerCase() === p.name.toLowerCase(),
+                    ),
+                ).map((p) => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => addShippingOption(p)}
+                    className="inline-flex items-center gap-1 rounded border border-white/10 bg-[#101012] px-2.5 py-1.5 text-[11px] font-semibold text-white/70 transition hover:border-amber-400/40 hover:text-amber-300"
+                  >
+                    <Plus size={11} />+ {p.name} (${p.price})
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addShippingOption()}
+                  className="inline-flex items-center gap-1 rounded border border-dashed border-white/15 bg-transparent px-2.5 py-1.5 text-[11px] font-semibold text-white/60 transition hover:border-amber-400/40 hover:text-amber-300"
+                >
+                  <Plus size={11} /> Custom option
+                </button>
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-white/50">
+              Use $0 for free shipping. Sellers commonly offer Standard free,
+              with Expedited or Overnight as paid upgrades.
+            </p>
+          </div>
+
+          <div className="mt-5">
+            <label className="block max-w-[180px]">
               <span className="text-sm font-semibold text-white/80">Quantity</span>
               <input
                 type="number"
@@ -303,13 +440,20 @@ export function SellForm({
           <dl className="mt-4 divide-y divide-white/5 rounded-lg border border-white/10">
             <Field label="Asking price" value={formatUSDFull(askNum)} />
             <Field
-              label="Shipping"
+              label={
+                validShippingOptions.length === 1
+                  ? "Shipping"
+                  : `Shipping (${validShippingOptions.length} options)`
+              }
               value={
-                shipping === "0"
-                  ? "Free"
-                  : shipping === "calc"
-                    ? "Calculated at checkout"
-                    : `$${shipping} flat`
+                validShippingOptions.length === 0
+                  ? "—"
+                  : validShippingOptions
+                      .map((o) => {
+                        const c = Math.round(parseFloat(o.price || "0") * 100);
+                        return `${o.name}: ${c === 0 ? "Free" : formatUSDFull(c / 100)}`;
+                      })
+                      .join(" · ")
               }
             />
             <Field label="Quantity" value={quantity} />
@@ -381,6 +525,7 @@ export function SellForm({
                   setStep(1);
                   setSkuId(null);
                   setAskPrice("");
+                  setShippingOptions(DEFAULT_SHIPPING);
                   setSubmitted(false);
                   setSubmitError(null);
                 }}

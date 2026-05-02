@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i0.wp.com" },
       { protocol: "https", hostname: "slabstat-production.s3.amazonaws.com" },
       { protocol: "https", hostname: "*.amazonaws.com" },
+      // Admin uploads from /admin/catalog land in the Supabase Storage
+      // `product-images` bucket; the public URL is on the project's
+      // supabase.co subdomain. Wildcard so we don't have to bake the
+      // project ref into next.config.
+      { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
 };

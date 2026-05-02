@@ -126,6 +126,43 @@ async function handleEvent(event: Stripe.Event) {
         }
       }
 
+      // Resolve which shipping option the buyer picked + how much they
+      // actually paid for shipping. Stripe stores the chosen rate id in
+      // session.shipping_cost.shipping_rate; expand it to read the
+      // display_name (we set this when we created the rate).
+      let chosenShippingName: string | null = null;
+      let chosenShippingCents: number | null = null;
+      const sessionWithShipping = session as unknown as {
+        shipping_cost?: {
+          amount_total?: number | null;
+          shipping_rate?: string | { id?: string; display_name?: string | null; metadata?: Record<string, string> } | null;
+        } | null;
+      };
+      const sc = sessionWithShipping.shipping_cost;
+      if (sc) {
+        if (typeof sc.amount_total === "number") {
+          chosenShippingCents = sc.amount_total;
+        }
+        if (sc.shipping_rate) {
+          if (typeof sc.shipping_rate === "string" && stripe) {
+            try {
+              const rate = await stripe.shippingRates.retrieve(sc.shipping_rate);
+              chosenShippingName =
+                rate.metadata?.waxdepot_shipping_name ??
+                rate.display_name ??
+                null;
+            } catch (e) {
+              console.error("Shipping rate retrieve failed:", e);
+            }
+          } else if (typeof sc.shipping_rate === "object") {
+            chosenShippingName =
+              sc.shipping_rate.metadata?.waxdepot_shipping_name ??
+              sc.shipping_rate.display_name ??
+              null;
+          }
+        }
+      }
+
       // Capture shipping address from Checkout's collected_information.
       // The shape moved between versions of the Stripe API; check both.
       type ShippingShape = {
@@ -159,6 +196,28 @@ async function handleEvent(event: Stripe.Event) {
         update.ship_to_city = a.city ?? "—";
         update.ship_to_state = a.state ?? "—";
         update.ship_to_zip = a.postal_code ?? "—";
+      }
+      // Persist the actual shipping the buyer paid + the option name. The
+      // pre-checkout `orders.shipping_cents` was a placeholder (the lowest
+      // option) so this is when the order's shipping cost becomes real.
+      if (chosenShippingCents !== null) {
+        update.shipping_cents = chosenShippingCents;
+      }
+      if (chosenShippingName) {
+        update.shipping_option_name = chosenShippingName;
+      }
+      // Re-derive total_cents from the final shipping pick so receipts and
+      // payouts stay consistent.
+      if (chosenShippingCents !== null) {
+        const { data: existing } = await supabase
+          .from("orders")
+          .select("price_cents, tax_cents")
+          .eq("id", orderId)
+          .maybeSingle();
+        if (existing) {
+          update.total_cents =
+            existing.price_cents + chosenShippingCents + (existing.tax_cents ?? 0);
+        }
       }
 
       await supabase.from("orders").update(update).eq("id", orderId);

@@ -5,6 +5,7 @@ import { CartDrawer } from "./cart-drawer";
 import { LogoMark } from "./logo-mark";
 import { NotificationsBell } from "./notifications-bell";
 import { MobileSearch } from "./mobile-search";
+import { SportTabWithMenu } from "./sport-tab-with-menu";
 import { createClient } from "@/lib/supabase/server";
 
 const SPORT_TABS: { id: string; label: string }[] = [
@@ -39,10 +40,6 @@ async function loadYearsBySport(): Promise<Record<string, number[]>> {
     const y = new Date().getFullYear();
     return { NBA: [y, y - 1], MLB: [y, y - 1], NFL: [y, y - 1], NHL: [y, y - 1] };
   }
-}
-
-function formatYearLabel(sport: string, year: number) {
-  return ["NBA", "NHL"].includes(sport) ? `${year}-${(year + 1).toString().slice(2)}` : String(year);
 }
 
 export async function SiteHeader() {
@@ -113,49 +110,5 @@ export async function SiteHeader() {
   );
 }
 
-/**
- * A sport tab with a CSS-only hover dropdown that lists the years we have
- * SKUs for. No JS, no client component — just :hover and focus-within so it
- * also works for keyboard users. Tab itself links to the all-sports filter;
- * each year link narrows further.
- */
-function SportTabWithMenu({
-  sport,
-  label,
-  years,
-}: {
-  sport: string;
-  label: string;
-  years: number[];
-}) {
-  return (
-    <div className="group relative">
-      <Link
-        href={`/?sport=${sport}`}
-        className="block rounded-md px-3 py-1.5 text-[13px] font-medium tracking-wide text-white/70 transition hover:text-white group-hover:text-white group-focus-within:text-white"
-      >
-        {label}
-      </Link>
-      {years.length > 0 && (
-        <div className="invisible absolute right-0 top-full z-40 mt-1 min-w-[160px] origin-top-right rounded-md border border-white/10 bg-[#101012] p-1 opacity-0 shadow-xl shadow-black/40 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-          <Link
-            href={`/?sport=${sport}`}
-            className="block rounded px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-white/5"
-          >
-            All {label}
-          </Link>
-          <div className="my-1 border-t border-white/5" />
-          {years.map((y) => (
-            <Link
-              key={y}
-              href={`/?sport=${sport}&year=${y}`}
-              className="block rounded px-3 py-1.5 text-[12px] font-medium text-white/80 hover:bg-white/5 hover:text-white"
-            >
-              {formatYearLabel(sport, y)}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// SportTabWithMenu lives in its own client component file so the rest of
+// the header stays server-rendered. See ./sport-tab-with-menu.tsx.

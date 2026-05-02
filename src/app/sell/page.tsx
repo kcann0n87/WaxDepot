@@ -96,6 +96,12 @@ function PayoutsRequiredGate({
         <Bullet>Takes about 3 minutes — bank or debit card, address, SSN last 4</Bullet>
         <Bullet>You get paid 2 days after each delivery (Starter tier)</Bullet>
         <Bullet>Stripe-verified sellers get the verified badge on listings</Bullet>
+        <Bullet>
+          <span className="text-white/70">
+            US sellers only — payouts are processed via Stripe Connect (US bank
+            or debit card required).
+          </span>
+        </Bullet>
       </ul>
 
       <Link

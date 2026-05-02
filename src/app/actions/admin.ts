@@ -91,6 +91,72 @@ export async function adminForceReleaseOrder(
 }
 
 /**
+ * Force an order into the Delivered state. Sets `delivered_at = now()`,
+ * which starts the 2-day auto-release clock — the buyer can either confirm
+ * delivery (immediate release) or open a dispute. After 2 days the
+ * /api/cron/auto-release job releases funds to the seller automatically.
+ *
+ * Useful when:
+ *   - The carrier's delivery webhook didn't fire (lost in EasyPost)
+ *   - The seller hand-delivered it and there's no tracking event
+ *   - The buyer claims non-receipt but the package was clearly received
+ *
+ * Idempotent — safe to call on Delivered/Released/Completed orders (just
+ * does nothing). Uses the same logic as buyer/seller markDelivered but
+ * bypasses the "must be Shipped" check so admins can recover stuck orders.
+ */
+export async function adminMarkDelivered(
+  orderId: string,
+  reason: string,
+): Promise<Result> {
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+  if (!reason.trim()) return { error: "Reason required for the audit log." };
+
+  const sb = serviceRoleClient();
+  const { data: order } = await sb
+    .from("orders")
+    .select("id, status, delivered_at, buyer_id, seller_id, sku:skus!orders_sku_id_fkey(year, brand, product)")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { error: "Order not found." };
+  if (["Released", "Completed", "Canceled"].includes(order.status))
+    return { error: `Order is already ${order.status}.` };
+  if (order.status === "Delivered")
+    return { error: "Order is already Delivered." };
+
+  const now = new Date().toISOString();
+  const { error } = await sb
+    .from("orders")
+    .update({ status: "Delivered", delivered_at: now })
+    .eq("id", orderId);
+  if (error) return { error: error.message };
+
+  // Notify the buyer so they know the dispute window is now open.
+  const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
+  const skuMeta = skuRel as
+    | { year?: number; brand?: string; product?: string }
+    | null;
+  if (skuMeta) {
+    await sb.from("notifications").insert({
+      user_id: order.buyer_id,
+      type: "order-delivered",
+      title: "Marked delivered by support",
+      body: `WaxDepot marked ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} delivered. Funds auto-release in 2 days unless you open a dispute.`,
+      href: `/account/orders/${orderId}`,
+    });
+  }
+
+  await logAdminAction(admin.id, "mark_delivered", "order", orderId, {
+    reason,
+    previous_status: order.status,
+  });
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${orderId}`);
+  return { ok: true };
+}
+
+/**
  * Cancel an order without refunding (for orders that never charged, or
  * that already refunded but need status cleanup).
  */
@@ -277,6 +343,91 @@ export async function adminUpdateSku(
   revalidatePath("/admin/catalog");
   revalidatePath(`/admin/catalog/${id}`);
   return { ok: true };
+}
+
+/**
+ * Upload an image to the public `product-images` Supabase Storage bucket and
+ * return its public URL. Caller (the SKU form) decides what to do with the
+ * URL — typically pasting it into the form's image_url field, or saving it
+ * straight to the SKU.
+ *
+ * The slug is used as the path key so re-uploads replace the existing file
+ * and the URL stays stable across edits. A short timestamp suffix is added
+ * so CDN caches drop the old version when admins replace an image.
+ */
+export async function adminUploadSkuImage(
+  formData: FormData,
+): Promise<Result> {
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+
+  const file = formData.get("file");
+  const slug = String(formData.get("slug") || "").trim().toLowerCase();
+  const skuId = String(formData.get("skuId") || "").trim() || null;
+
+  if (!slug || !/^[a-z0-9][a-z0-9-]*$/.test(slug))
+    return { error: "Slug is required (lowercase, hyphens only)." };
+  if (!(file instanceof File))
+    return { error: "No file received." };
+  if (file.size === 0) return { error: "File is empty." };
+  if (file.size > 5 * 1024 * 1024)
+    return { error: "Max 5MB per image." };
+
+  const allowed = new Map<string, string>([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+  ]);
+  const ext = allowed.get(file.type);
+  if (!ext) return { error: "Use JPG, PNG, or WebP." };
+
+  // Add a short timestamp so the public URL changes whenever the admin
+  // re-uploads — clients can't see a stale CDN copy.
+  const stamp = Date.now().toString(36);
+  const path = `${slug}-${stamp}.${ext}`;
+
+  const sb = serviceRoleClient();
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error: uploadErr } = await sb.storage
+    .from("product-images")
+    .upload(path, buffer, {
+      contentType: file.type,
+      upsert: true,
+      cacheControl: "31536000",
+    });
+  if (uploadErr) {
+    console.error("adminUploadSkuImage upload failed:", uploadErr);
+    return { error: `Upload failed: ${uploadErr.message}` };
+  }
+
+  const { data: pub } = sb.storage.from("product-images").getPublicUrl(path);
+  const publicUrl = pub.publicUrl;
+  if (!publicUrl) return { error: "Could not derive public URL." };
+
+  // If a skuId was provided, persist immediately so the SKU is updated even
+  // if the admin closes the form before clicking Save.
+  if (skuId) {
+    const { error: updateErr } = await sb
+      .from("skus")
+      .update({ image_url: publicUrl })
+      .eq("id", skuId);
+    if (updateErr) {
+      console.error("adminUploadSkuImage skus update failed:", updateErr);
+      return { error: `Saved file but couldn't update SKU: ${updateErr.message}` };
+    }
+    revalidatePath("/admin/catalog");
+    revalidatePath(`/admin/catalog/${skuId}`);
+  }
+
+  await logAdminAction(admin.id, "upload_sku_image", "sku", skuId ?? slug, {
+    slug,
+    path,
+    size_bytes: file.size,
+    type: file.type,
+  });
+
+  return { ok: true, data: { publicUrl, path } };
 }
 
 /**

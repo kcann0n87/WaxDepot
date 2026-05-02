@@ -37,6 +37,12 @@ export default async function AdminOrderDetailPage({
     order.payment_status === "paid" &&
     !order.stripe_transfer_id &&
     ["InEscrow", "Shipped", "Delivered"].includes(order.status);
+  // Manual mark-delivered: any pre-Delivered state where the package
+  // realistically could have arrived. Sets delivered_at so the 2-day
+  // auto-release cron picks it up.
+  const canMarkDelivered = ["Charged", "InEscrow", "Shipped"].includes(
+    order.status,
+  );
 
   return (
     <div>
@@ -91,8 +97,9 @@ export default async function AdminOrderDetailPage({
             orderId={order.id}
             canRefund={canRefund}
             canRelease={canRelease}
+            canMarkDelivered={canMarkDelivered}
           />
-          {!canRefund && !canRelease && (
+          {!canRefund && !canRelease && !canMarkDelivered && (
             <p className="rounded-md border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-white/60">
               Order is in a terminal state — no further admin actions available
               on the platform side. Use Stripe directly if needed.

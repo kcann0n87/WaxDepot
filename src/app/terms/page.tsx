@@ -53,6 +53,15 @@ export default function TermsPage() {
             in your jurisdiction. You may use the Service only for lawful purposes.
             One person, one account — duplicate accounts are grounds for termination.
           </p>
+          <p>
+            <strong>Sellers must be based in the United States</strong> and able
+            to complete identity verification through Stripe Connect (US tax ID,
+            US bank account or debit card, US address). Buyers may be located
+            outside the United States, but every order ships to a US shipping
+            address — international forwarding services are at the buyer&apos;s
+            sole risk and Buyer Protection coverage ends once the carrier
+            confirms delivery to the original US address.
+          </p>
         </Section>
 
         <Section n="3" title="Sellers — payouts and identity verification">

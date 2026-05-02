@@ -379,9 +379,10 @@ export default async function OrderDetailPage({
               <MarkDeliveredButton orderId={order.id} isSeller={isSeller} />
             )}
 
-            {/* Buyer can short-circuit by confirming immediately */}
+            {/* Buyer can short-circuit by confirming immediately (gated to
+                ≥24h after shipped — see ConfirmDeliveryButton). */}
             {isBuyer && (order.status === "Shipped" || order.status === "Delivered") && (
-              <ConfirmDeliveryButton orderId={order.id} />
+              <ConfirmDeliveryButton orderId={order.id} shippedAt={order.shipped_at} />
             )}
 
             {/* Auto-release timer countdown */}

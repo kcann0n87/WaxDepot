@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Plus, ImageOff } from "lucide-react";
+import { Plus } from "lucide-react";
 import { serviceRoleClient } from "@/lib/supabase/admin";
+import { InlineImageUpload } from "./inline-image-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -85,18 +86,12 @@ export default async function AdminCatalogPage({
             {(skus ?? []).map((s) => (
               <tr key={s.id} className="hover:bg-white/[0.02]">
                 <td className="px-4 py-2">
-                  {s.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={s.image_url}
-                      alt=""
-                      className="h-12 w-9 rounded object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-9 items-center justify-center rounded bg-white/5 text-white/50">
-                      <ImageOff size={14} />
-                    </div>
-                  )}
+                  <InlineImageUpload
+                    skuId={s.id}
+                    slug={s.slug}
+                    currentUrl={s.image_url ?? null}
+                    alt={`${s.year} ${s.brand} ${s.set_name}`}
+                  />
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-sm font-semibold text-white">

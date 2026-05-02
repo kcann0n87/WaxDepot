@@ -514,6 +514,14 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
   }
 }
 
+/**
+ * Floor on how long after the carrier's "shipped" event a buyer can release
+ * funds. Nothing realistically arrives in < 24h domestically, so the button
+ * is gated to prevent accidental / fraudulent same-day releases. Server-side
+ * defense-in-depth — the UI also disables the button with a countdown.
+ */
+const RELEASE_GATE_MS = 24 * 60 * 60 * 1000;
+
 export async function confirmDelivery(formData: FormData): Promise<ActionResult> {
   const orderId = String(formData.get("orderId") || "").trim();
   if (!orderId) return { error: "Missing order id." };
@@ -528,7 +536,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     const { data: order } = await supabase
       .from("orders")
       .select(
-        "id, buyer_id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_payment_intent_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
+        "id, buyer_id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_payment_intent_id, shipped_at, sku:skus!orders_sku_id_fkey(year, brand, product)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -536,6 +544,20 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     if (order.buyer_id !== user.id) return { error: "Only the buyer can confirm delivery." };
     if (!["Shipped", "Delivered"].includes(order.status))
       return { error: `Cannot confirm — order is ${order.status}.` };
+
+    // 24h-since-shipped gate. If the carrier hasn't even had it for a day,
+    // the buyer almost certainly hasn't received it and shouldn't be able to
+    // release funds. Auto-release cron + dispute window are unaffected.
+    if (order.shipped_at) {
+      const shippedMs = new Date(order.shipped_at).getTime();
+      const elapsed = Date.now() - shippedMs;
+      if (Number.isFinite(elapsed) && elapsed < RELEASE_GATE_MS) {
+        const hoursLeft = Math.ceil((RELEASE_GATE_MS - elapsed) / 3_600_000);
+        return {
+          error: `Funds can be released starting 24 hours after the seller marks the order shipped. Try again in ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`,
+        };
+      }
+    }
 
     // Service role for the lifecycle write + cross-user notification +
     // Stripe-related profile read. Ownership was just validated.

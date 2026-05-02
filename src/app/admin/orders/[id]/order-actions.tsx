@@ -4,19 +4,22 @@ import { useState, useTransition } from "react";
 import {
   adminCancelOrder,
   adminForceReleaseOrder,
+  adminMarkDelivered,
   adminRefundOrder,
 } from "@/app/actions/admin";
 
-type Action = "refund" | "release" | "cancel";
+type Action = "refund" | "release" | "cancel" | "delivered";
 
 export function OrderAdminActions({
   orderId,
   canRefund,
   canRelease,
+  canMarkDelivered,
 }: {
   orderId: string;
   canRefund: boolean;
   canRelease: boolean;
+  canMarkDelivered: boolean;
 }) {
   const [open, setOpen] = useState<Action | null>(null);
   const [reason, setReason] = useState("");
@@ -36,7 +39,9 @@ export function OrderAdminActions({
           ? adminRefundOrder
           : action === "release"
             ? adminForceReleaseOrder
-            : adminCancelOrder;
+            : action === "delivered"
+              ? adminMarkDelivered
+              : adminCancelOrder;
       const result = await fn(orderId, reason.trim());
       if (result.error) setErr(result.error);
       else {
@@ -53,6 +58,15 @@ export function OrderAdminActions({
         Admin actions · destructive
       </div>
       <div className="flex flex-wrap gap-2">
+        {canMarkDelivered && (
+          <button
+            onClick={() => setOpen(open === "delivered" ? null : "delivered")}
+            disabled={pending}
+            className="rounded-md border border-sky-700/40 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
+          >
+            Mark delivered (start 2-day clock)
+          </button>
+        )}
         {canRefund && (
           <button
             onClick={() => setOpen(open === "refund" ? null : "refund")}

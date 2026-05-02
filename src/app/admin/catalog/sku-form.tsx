@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { adminCreateSku, adminUpdateSku, adminDeleteSku } from "@/app/actions/admin";
+import { ImageOff, Loader2, Upload } from "lucide-react";
+import {
+  adminCreateSku,
+  adminDeleteSku,
+  adminUpdateSku,
+  adminUploadSkuImage,
+} from "@/app/actions/admin";
 
 type SkuFormValues = {
   slug?: string;
@@ -40,7 +46,10 @@ export function SkuForm({
     gradient_to: initial?.gradient_to ?? "#0f172a",
   });
   const [pending, start] = useTransition();
+  const [uploading, startUpload] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof SkuFormValues>(k: K, v: SkuFormValues[K]) =>
     setVals((p) => ({ ...p, [k]: v }));
@@ -82,6 +91,45 @@ export function SkuForm({
       const result = await adminDeleteSku(skuId);
       if (result.error) setErr(result.error);
       else router.push("/admin/catalog");
+    });
+  };
+
+  const handleFile = async (file: File | null) => {
+    if (!file) return;
+    setErr(null);
+    setUploadMsg(null);
+
+    const slug = (vals.slug ?? "").trim().toLowerCase();
+    if (!slug) {
+      setErr("Enter a slug first — the file is named after it.");
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
+      setErr("Slug must be lowercase letters, numbers, hyphens.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.set("file", file);
+    fd.set("slug", slug);
+    if (skuId) fd.set("skuId", skuId);
+
+    startUpload(async () => {
+      const result = await adminUploadSkuImage(fd);
+      if (result.error) {
+        setErr(result.error);
+        return;
+      }
+      const data = result.data as { publicUrl?: string } | undefined;
+      if (data?.publicUrl) {
+        setVals((p) => ({ ...p, image_url: data.publicUrl! }));
+        setUploadMsg(
+          skuId
+            ? "Uploaded and saved to this SKU."
+            : "Uploaded. Click Save to attach to the new SKU.",
+        );
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
     });
   };
 
@@ -142,6 +190,8 @@ export function SkuForm({
             <option>Hanger Box</option>
             <option>Booster Box</option>
             <option>Elite Trainer Box</option>
+            <option>Hobby Case</option>
+            <option>Inner Case</option>
           </select>
         </Field>
       </div>
@@ -164,17 +214,81 @@ export function SkuForm({
         />
       </Field>
 
-      <Field
-        label="Image URL"
-        hint="Paste a /products/<slug>.jpg path or a full URL. Run scripts/stockx-direct.mjs to autofill."
-      >
-        <input
-          value={vals.image_url}
-          onChange={(e) => set("image_url", e.target.value)}
-          className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white font-mono"
-          placeholder="/products/2025-topps-chrome-football-hobby-box.jpg"
-        />
-      </Field>
+      {/* Image: preview + upload + URL paste. The file input uploads to
+          Supabase Storage immediately (server action) and writes the
+          public URL into the image_url field below. The URL field stays
+          editable so admins can also paste a /products/<slug>.jpg path
+          or a third-party CDN URL. */}
+      <div className="space-y-2">
+        <span className="block text-xs font-semibold text-white/80">Image</span>
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-24 w-20 shrink-0 items-center justify-center overflow-hidden rounded border border-white/10 bg-white/[0.02]"
+            style={{
+              background: vals.image_url
+                ? "transparent"
+                : `linear-gradient(135deg, ${vals.gradient_from}, ${vals.gradient_to})`,
+            }}
+          >
+            {vals.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={vals.image_url}
+                src={vals.image_url}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <ImageOff size={20} className="text-white/40" />
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+              className="hidden"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 rounded-md bg-amber-400 px-3 py-1.5 text-xs font-bold text-slate-900 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Upload size={12} />
+                )}
+                {uploading ? "Uploading…" : vals.image_url ? "Replace image" : "Upload image"}
+              </button>
+              {vals.image_url && (
+                <button
+                  type="button"
+                  onClick={() => set("image_url", "")}
+                  className="text-[11px] font-semibold text-white/60 transition hover:text-rose-300"
+                >
+                  Clear
+                </button>
+              )}
+              <span className="text-[10px] text-white/40">
+                JPG · PNG · WebP · max 5MB
+              </span>
+            </div>
+            <input
+              value={vals.image_url}
+              onChange={(e) => set("image_url", e.target.value)}
+              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-white"
+              placeholder="https://… or /products/<slug>.jpg"
+            />
+            {uploadMsg && (
+              <p className="text-[11px] text-emerald-300">{uploadMsg}</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       <Field label="Description">
         <textarea
