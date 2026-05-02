@@ -65,10 +65,12 @@ export async function getListingsForSku(skuId: string): Promise<Listing[]> {
   return (data ?? []).map((r) => {
     // Supabase types joined relations as arrays even when 1:1 — normalize.
     const sellerObj = Array.isArray(r.seller) ? r.seller[0] : r.seller;
+    const seller = sellerObj as { username?: string; is_verified?: boolean } | null;
     return {
       id: r.id,
       skuId: r.sku_id,
-      seller: (sellerObj as { username?: string } | null)?.username ?? "unknown",
+      seller: seller?.username ?? "unknown",
+      sellerVerified: !!seller?.is_verified,
       sellerRating: 100, // TODO compute from reviews
       sellerSales: 0, // TODO compute from completed orders
       price: r.price_cents / 100,

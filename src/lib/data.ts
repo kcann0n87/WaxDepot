@@ -18,6 +18,7 @@ export type Listing = {
   id: string;
   skuId: string;
   seller: string;
+  sellerVerified: boolean;
   sellerRating: number;
   sellerSales: number;
   price: number;
@@ -556,6 +557,7 @@ export function listingsForSku(skuId: string): Listing[] {
       id: `${skuId}-l${i}`,
       skuId,
       seller: seller.name,
+      sellerVerified: false,
       sellerRating: seller.rating,
       sellerSales: seller.sales,
       price,

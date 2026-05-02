@@ -7,6 +7,7 @@ import { OrderBookDepth } from "@/components/order-book-depth";
 import { PresaleBanner } from "@/components/presale-banner";
 import { ProductJsonLd } from "@/components/product-jsonld";
 import { RealtimeOrderBook } from "@/components/realtime-order-book";
+import { SellerLink } from "@/components/seller-link";
 import { PriceChart } from "@/components/price-chart";
 import { ProductImage } from "@/components/product-image";
 import { RecentlyViewed } from "@/components/recently-viewed";
@@ -241,12 +242,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                       <tr key={l.id} className="transition hover:bg-white/[0.02]">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
-                            <Link
-                              href={`/seller/${l.seller}`}
-                              className="font-semibold text-white transition hover:text-amber-300"
-                            >
-                              {l.seller}
-                            </Link>
+                            <SellerLink
+                              username={l.seller}
+                              isVerified={l.sellerVerified}
+                              size="sm"
+                            />
                             <Link
                               href={`/account/messages/new?to=${l.seller}&sku=${sku.id}`}
                               className="rounded-md p-1 text-white/50 transition hover:bg-white/5 hover:text-amber-300"
