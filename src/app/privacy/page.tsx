@@ -90,8 +90,8 @@ export default function PrivacyPage() {
             We share the minimum data necessary with these third-party
             processors, each of whom has signed a Data Processing Agreement:
           </p>
-          <div className="mt-4 overflow-hidden rounded-lg border border-white/10">
-            <table className="w-full text-sm">
+          <div className="mt-4 overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-white/5 text-left text-[11px] font-semibold tracking-wider text-white/60 uppercase">
                 <tr>
                   <th className="px-4 py-2.5">Service</th>
