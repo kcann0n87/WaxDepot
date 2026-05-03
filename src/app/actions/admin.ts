@@ -455,3 +455,53 @@ export async function adminDeleteSku(id: string): Promise<Result> {
   revalidatePath("/admin/catalog");
   return { ok: true };
 }
+
+/**
+ * Send a Supabase magic-link invite to an email address. The invitee gets
+ * an email with a link that signs them in and lands them at NEXT_PUBLIC_SITE_URL
+ * (or localhost in dev). On first sign-in the handle_new_user trigger
+ * creates their profile with username derived from email + display_name
+ * from the metadata we pass here.
+ *
+ * Used while we're invite-only — public /signup is gated by middleware.
+ */
+export async function adminInviteUser(input: {
+  email: string;
+  displayName?: string;
+}): Promise<Result> {
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+
+  const email = input.email.trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const sb = serviceRoleClient();
+
+  // Reject if there's already an auth user for this email — better to
+  // surface the duplicate than silently send another invite.
+  const { data: existing } = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
+  if (existing?.users.some((u) => u.email?.toLowerCase() === email)) {
+    return { error: "An account with that email already exists." };
+  }
+
+  const redirectTo =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+
+  const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${redirectTo}/account`,
+    data: input.displayName
+      ? { display_name: input.displayName.trim() }
+      : undefined,
+  });
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin.id, "invite_user", "user", data.user?.id ?? email, {
+    email,
+    display_name: input.displayName ?? null,
+  });
+  revalidatePath("/admin/invite");
+  revalidatePath("/admin/users");
+  return { ok: true, data: { user_id: data.user?.id ?? null, email } };
+}
