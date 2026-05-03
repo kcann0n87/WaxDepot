@@ -414,7 +414,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
     const { data: order } = await admin
       .from("orders")
       .select(
-        "id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_transfer_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
+        "id, seller_id, status, payment_status, total_cents, price_cents, partial_refund_cents, stripe_charge_id, stripe_transfer_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -443,8 +443,13 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
           .maybeSingle();
         if (seller?.stripe_account_id && seller.stripe_charges_enabled) {
           const tier: SellerTier = "Starter";
-          const feeCents = Math.round(order.price_cents * TIER_FEE[tier]);
-          const transferAmount = order.price_cents - feeCents;
+          // Subtract any partial refunds the seller already issued —
+          // the buyer has been refunded that money, so the seller's
+          // net payout drops accordingly.
+          const partialRefunds = order.partial_refund_cents ?? 0;
+          const sellerPriceAfterRefunds = order.price_cents - partialRefunds;
+          const feeCents = Math.round(sellerPriceAfterRefunds * TIER_FEE[tier]);
+          const transferAmount = sellerPriceAfterRefunds - feeCents;
           if (transferAmount > 0) {
             await stripe.transfers.create({
               amount: transferAmount,
@@ -452,7 +457,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
               destination: seller.stripe_account_id,
               source_transaction: order.stripe_charge_id,
               metadata: { waxdepot_order_id: order.id },
-              description: `Payout for ${order.id} (${tier} tier · ${(TIER_FEE[tier] * 100).toFixed(0)}% fee)`,
+              description: `Payout for ${order.id} (${tier} tier · ${(TIER_FEE[tier] * 100).toFixed(0)}% fee${partialRefunds > 0 ? ` · -$${(partialRefunds / 100).toFixed(2)} partial refund` : ""})`,
             });
           }
         }
@@ -536,7 +541,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
     const { data: order } = await supabase
       .from("orders")
       .select(
-        "id, buyer_id, seller_id, status, payment_status, total_cents, price_cents, stripe_charge_id, stripe_payment_intent_id, shipped_at, sku:skus!orders_sku_id_fkey(year, brand, product)",
+        "id, buyer_id, seller_id, status, payment_status, total_cents, price_cents, partial_refund_cents, stripe_charge_id, stripe_payment_intent_id, shipped_at, sku:skus!orders_sku_id_fkey(year, brand, product)",
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -593,8 +598,10 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
           // Default to Starter tier fee. When per-seller-tier is wired this
           // becomes a column lookup on the seller's profile.
           const tier: SellerTier = "Starter";
-          const feeCents = Math.round(order.price_cents * TIER_FEE[tier]);
-          const transferAmount = order.price_cents - feeCents;
+          const partialRefunds = order.partial_refund_cents ?? 0;
+          const sellerPriceAfterRefunds = order.price_cents - partialRefunds;
+          const feeCents = Math.round(sellerPriceAfterRefunds * TIER_FEE[tier]);
+          const transferAmount = sellerPriceAfterRefunds - feeCents;
           if (transferAmount > 0) {
             await stripe.transfers.create({
               amount: transferAmount,
@@ -602,7 +609,7 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
               destination: seller.stripe_account_id,
               source_transaction: order.stripe_charge_id,
               metadata: { waxdepot_order_id: order.id },
-              description: `Payout for order ${order.id} (${tier} tier · ${(TIER_FEE[tier] * 100).toFixed(0)}% fee)`,
+              description: `Payout for order ${order.id} (${tier} tier · ${(TIER_FEE[tier] * 100).toFixed(0)}% fee${partialRefunds > 0 ? ` · -$${(partialRefunds / 100).toFixed(2)} partial refund` : ""})`,
             });
           }
         }
@@ -635,10 +642,149 @@ export async function confirmDelivery(formData: FormData): Promise<ActionResult>
   }
 }
 
+/**
+ * Seller-initiated partial refund. Use case: box arrived damaged,
+ * seller wants to comp the buyer $X to keep them happy without going
+ * through a full dispute. Seller eats the cost — the eventual transfer
+ * to their connected account is reduced by the refunded amount.
+ *
+ * Constraints:
+ *   - Order must be in a refundable state (paid + escrow not released
+ *     yet). Once released, refunds are out of our hands.
+ *   - Refund amount must be > 0 and not exceed price_cents (don't
+ *     allow refunding the shipping line — that's a separate Stripe call
+ *     we don't support here).
+ *   - Cumulative partial_refund_cents (across multiple calls) capped
+ *     at price_cents.
+ *
+ * Reason field is required; logged in cancel_reason for audit trail
+ * (we share the column since partial refunds are similar lifecycle
+ * events) and notifies the buyer.
+ */
+export async function sellerPartialRefund(
+  formData: FormData,
+): Promise<ActionResult> {
+  const orderId = String(formData.get("orderId") || "").trim();
+  const amountStr = String(formData.get("amount") || "").trim();
+  const reason = String(formData.get("reason") || "").trim().slice(0, 500);
+
+  if (!orderId) return { error: "Missing order id." };
+  if (!reason || reason.length < 6) {
+    return {
+      error: "Tell the buyer why — at least a sentence. They'll see it.",
+    };
+  }
+  const amountDollars = parseFloat(amountStr);
+  if (!Number.isFinite(amountDollars) || amountDollars <= 0) {
+    return { error: "Refund amount must be greater than zero." };
+  }
+  const amountCents = Math.round(amountDollars * 100);
+
+  if (!stripe) return { error: "Payments aren't configured yet." };
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "You must be signed in." };
+
+    const { data: order } = await supabase
+      .from("orders")
+      .select(
+        "id, seller_id, buyer_id, status, payment_status, price_cents, partial_refund_cents, stripe_charge_id, sku:skus!orders_sku_id_fkey(year, brand, product)",
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!order) return { error: "Order not found." };
+    if (order.seller_id !== user.id)
+      return { error: "Only the seller can issue a partial refund." };
+    if (order.payment_status !== "paid")
+      return { error: "Order isn't paid — nothing to refund." };
+    if (!order.stripe_charge_id)
+      return { error: "No Stripe charge on file for this order." };
+    if (["Released", "Completed", "Canceled"].includes(order.status))
+      return {
+        error: `Order is ${order.status} — refund through admin/Stripe instead.`,
+      };
+
+    const alreadyRefunded = order.partial_refund_cents ?? 0;
+    const maxRefundable = order.price_cents - alreadyRefunded;
+    if (amountCents > maxRefundable) {
+      return {
+        error: `Max refundable is $${(maxRefundable / 100).toFixed(2)} (item price minus prior partial refunds).`,
+      };
+    }
+
+    // Issue the refund via Stripe before recording it in the DB. If
+    // Stripe rejects, we don't want a stale partial_refund_cents row.
+    let refundId: string | null = null;
+    try {
+      const refund = await stripe.refunds.create({
+        charge: order.stripe_charge_id,
+        amount: amountCents,
+        reason: "requested_by_customer",
+        metadata: {
+          waxdepot_order_id: order.id,
+          waxdepot_initiated_by: "seller",
+          waxdepot_reason: reason,
+        },
+      });
+      refundId = refund.id;
+    } catch (e) {
+      console.error("sellerPartialRefund Stripe failed:", e);
+      const message = e instanceof Error ? e.message : String(e);
+      return { error: `Stripe refund failed: ${message}` };
+    }
+
+    const admin = serviceRoleClient();
+    const newPartialTotal = alreadyRefunded + amountCents;
+    await admin
+      .from("orders")
+      .update({
+        partial_refund_cents: newPartialTotal,
+        // Append the refund to cancel_reason for the audit trail.
+        cancel_reason: `[partial refund $${(amountCents / 100).toFixed(2)} via ${refundId}] ${reason}`,
+      })
+      .eq("id", orderId);
+
+    // Notify buyer that the refund hit their card.
+    const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
+    const skuMeta = skuRel as
+      | { year?: number; brand?: string; product?: string }
+      | null;
+    const productTitle = skuMeta
+      ? `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`
+      : `order ${orderId}`;
+    await admin.from("notifications").insert({
+      user_id: order.buyer_id,
+      type: "payout-sent",
+      title: `Seller refunded $${(amountCents / 100).toFixed(2)}`,
+      body: `${productTitle}: $${(amountCents / 100).toFixed(2)} back to your card. Reason: ${reason}`,
+      href: `/account/orders/${orderId}`,
+    });
+
+    revalidatePath(`/account/orders/${orderId}`);
+    revalidatePath("/account");
+    return { ok: true };
+  } catch (e) {
+    console.error("sellerPartialRefund failed:", e);
+    return { error: "Could not process the refund. Please try again." };
+  }
+}
+
 export async function cancelOrder(formData: FormData): Promise<ActionResult> {
   const orderId = String(formData.get("orderId") || "").trim();
-  const reason = String(formData.get("reason") || "").trim().slice(0, 200) || null;
+  const reason = String(formData.get("reason") || "").trim().slice(0, 500);
   if (!orderId) return { error: "Missing order id." };
+  // Reason is now REQUIRED for both sides. Tier-recompute counts seller
+  // cancels and the audit trail needs the why for every cancellation.
+  if (!reason || reason.length < 6) {
+    return {
+      error:
+        "Tell us why — at least a sentence. This goes on the order record.",
+    };
+  }
 
   try {
     const supabase = await createClient();
@@ -659,6 +805,9 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
     if (!["Charged", "InEscrow"].includes(order.status))
       return { error: `Order is ${order.status} — open a dispute instead.` };
 
+    const canceledBy: "buyer" | "seller" =
+      order.seller_id === user.id ? "seller" : "buyer";
+
     // Service role for the cancel + listing reopen. Ownership was just
     // validated; the regular auth client could in theory do the order
     // update via the permissive buyer/seller policies, but if either
@@ -673,9 +822,24 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
         status: "Canceled",
         canceled_at: now,
         cancel_reason: reason,
+        canceled_by: canceledBy,
       })
       .eq("id", orderId);
     if (error) throw error;
+
+    // Notify the other party so they're not left wondering.
+    const otherUserId =
+      canceledBy === "seller" ? order.buyer_id : order.seller_id;
+    await admin.from("notifications").insert({
+      user_id: otherUserId,
+      type: canceledBy === "seller" ? "order-shipped" : "outbid",
+      title:
+        canceledBy === "seller"
+          ? "Seller canceled your order"
+          : "Buyer canceled an order",
+      body: `Order ${orderId} was canceled. Reason: ${reason}`,
+      href: `/account/orders/${orderId}`,
+    });
 
     // Re-open the listing if there was one (give seller back the inventory).
     if (order.listing_id) {

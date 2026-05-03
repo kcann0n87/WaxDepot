@@ -150,6 +150,15 @@ export default function TermsPage() {
             Elite on June 20 while in Pro grace → instantly upgraded to
             Elite, new lock through July 31.
           </p>
+          <p>
+            <strong>Cancellation cap on tier upgrades.</strong> Sellers
+            with <strong>more than 2 seller-initiated cancellations</strong>{" "}
+            in the rolling 30-day window cannot earn or extend a tier
+            upgrade. Cancels do not demote your existing tier — they just
+            block the next promotion until your cancel count drops back
+            to 2 or below. Every cancel requires a written reason that
+            becomes part of the order record.
+          </p>
           <ul className="list-disc space-y-1 pl-6">
             <li>
               <strong>Starter</strong> — 12% of item price. Default for every new

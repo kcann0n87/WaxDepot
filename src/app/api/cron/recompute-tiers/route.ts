@@ -154,6 +154,27 @@ export async function GET(request: Request) {
     );
   }
 
+  // Aggregate seller-initiated cancels in the rolling 30-day window.
+  // Used as a gate on tier promotions: > 2 in 30d blocks tier-up. The
+  // signal here is "this seller is unreliable" — they accepted bids /
+  // accepted purchases then bailed. Doesn't impact existing tier (no
+  // demotion from cancels alone), just blocks the upgrade path.
+  const { data: cancels } = await supabase
+    .from("orders")
+    .select("seller_id, canceled_at")
+    .in("seller_id", sellerIds)
+    .eq("canceled_by", "seller")
+    .gte("canceled_at", since);
+
+  const sellerCancelsLast30d = new Map<string, number>();
+  for (const c of (cancels ?? []) as { seller_id: string; canceled_at: string | null }[]) {
+    sellerCancelsLast30d.set(
+      c.seller_id,
+      (sellerCancelsLast30d.get(c.seller_id) ?? 0) + 1,
+    );
+  }
+  const MAX_SELLER_CANCELS_FOR_TIER_UP = 2;
+
   const results: {
     sellerId: string;
     from: SellerTier;
@@ -170,6 +191,7 @@ export async function GET(request: Request) {
         ? (reviewStats.positive / reviewStats.total) * 100
         : 100; // No reviews = treat as perfect; otherwise tier never opens
     const openDisputes = openDisputesBySeller.get(p.id) ?? 0;
+    const sellerCancels = sellerCancelsLast30d.get(p.id) ?? 0;
 
     const qualifying = tierFromMonthlyStats(
       stats.sales,
@@ -186,17 +208,28 @@ export async function GET(request: Request) {
     let nextExpiresAt: Date | null = expiresAt;
 
     if (TIER_RANK[qualifying] > TIER_RANK[current]) {
-      // Promotion — instant, set new grace expiry
-      action = "promote";
-      nextTier = qualifying;
-      nextExpiresAt = newExpiry;
+      // Promotion candidate — instant tier-up, BUT block if seller has
+      // > 2 cancels in the 30-day window. Reliability gate: a seller
+      // who's bailing on accepted orders shouldn't earn a fee discount.
+      if (sellerCancels > MAX_SELLER_CANCELS_FOR_TIER_UP) {
+        action = "noop";
+      } else {
+        action = "promote";
+        nextTier = qualifying;
+        nextExpiresAt = newExpiry;
+      }
     } else if (
       TIER_RANK[qualifying] === TIER_RANK[current] &&
       current !== "Starter"
     ) {
-      // Re-qualification at non-Starter tier — extend grace
-      action = "extend";
-      nextExpiresAt = newExpiry;
+      // Re-qualification at non-Starter tier — extend grace, BUT also
+      // gated by the cancel reliability check.
+      if (sellerCancels > MAX_SELLER_CANCELS_FOR_TIER_UP) {
+        action = "noop";
+      } else {
+        action = "extend";
+        nextExpiresAt = newExpiry;
+      }
     } else if (TIER_RANK[qualifying] < TIER_RANK[current]) {
       if (expiresInFuture) {
         // Lower qualification but grace period not over yet
