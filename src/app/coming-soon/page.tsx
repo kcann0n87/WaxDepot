@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, ShieldCheck, TrendingUp, Zap } from "lucide-react";
+import { ShieldCheck, TrendingUp, Zap } from "lucide-react";
 import { LogoMark } from "@/components/logo-mark";
 import { WaitlistForm } from "./waitlist-form";
 
@@ -62,21 +62,6 @@ export default function ComingSoonPage() {
           <Suspense fallback={null}>
             <WaitlistForm />
           </Suspense>
-        </div>
-
-        {/* Secondary CTA — sign up early */}
-        <div className="mt-6 inline-flex items-center gap-2 text-sm">
-          <span className="text-white/60">Or skip the wait —</span>
-          <Link
-            href="/signup"
-            className="group inline-flex items-center gap-1 font-bold text-amber-300 transition hover:text-amber-200"
-          >
-            sign up for the beta
-            <ArrowRight
-              size={14}
-              className="transition group-hover:translate-x-0.5"
-            />
-          </Link>
         </div>
       </main>
 

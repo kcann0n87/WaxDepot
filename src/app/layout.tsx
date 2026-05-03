@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { Analytics } from "@/components/analytics";
 import { MobileNav } from "@/components/mobile-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteJsonLd } from "@/components/site-jsonld";
+
+// Routes that render their own minimal layout (no SiteHeader/Footer/MobileNav).
+// Used for the beta gate so anon visitors don't see marketplace chrome /
+// public sign-up CTAs while we're invite-only.
+const STANDALONE_PATHS = new Set(["/coming-soon"]);
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const playfair = Playfair_Display({
@@ -70,10 +76,17 @@ export const metadata: Metadata = {
 // silences the resulting DYNAMIC_SERVER_USAGE log noise during build.
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const standalone = STANDALONE_PATHS.has(pathname);
+
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-[#0a0a0b] pb-14 text-white md:pb-0">
+      <body
+        className={`flex min-h-full flex-col bg-[#0a0a0b] text-white ${
+          standalone ? "" : "pb-14 md:pb-0"
+        }`}
+      >
         {/* Analytics initializer + SPA route-change tracker. No-ops without
             NEXT_PUBLIC_POSTHOG_KEY. Wrapped in Suspense because it reads
             useSearchParams which Next requires inside a Suspense boundary. */}
@@ -83,10 +96,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Site-wide Organization + WebSite JSON-LD for Google Knowledge
             Graph + sitelinks search box. Renders nothing visible. */}
         <SiteJsonLd />
-        <SiteHeader />
+        {!standalone && <SiteHeader />}
         <main id="main" tabIndex={-1} className="flex-1 outline-none">{children}</main>
-        <SiteFooter />
-        <MobileNav />
+        {!standalone && <SiteFooter />}
+        {!standalone && <MobileNav />}
       </body>
     </html>
   );

@@ -8,13 +8,12 @@ const PROTECTED_PREFIXES = ["/account", "/sell", "/cart", "/admin"];
 // Routes always reachable by anyone, even with the beta gate ON. Everything
 // else gets redirected to /coming-soon for anon visitors.
 //
-// Includes auth flows (so people can log in / sign up), the coming-soon page
-// itself, OAuth callback, API routes (so Stripe webhooks reach us), and the
-// special Next.js metadata routes.
+// While beta-gated we're invite-only — /signup is intentionally NOT public.
+// Invitees get accounts provisioned manually (or via emailed magic links)
+// and reach the site through /login. Re-add "/signup" here when launching.
 const ALWAYS_PUBLIC_PREFIXES = [
   "/coming-soon",
   "/login",
-  "/signup",
   "/forgot",
   "/reset",
   "/auth",
