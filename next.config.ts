@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ebayimg.com" },
       { protocol: "https", hostname: "img.beckett.com" },
       { protocol: "https", hostname: "xcdn.checklistinsider.com" },
+      { protocol: "https", hostname: "dacardworld1.imgix.net" },
       // Admin uploads from /admin/catalog land in the Supabase Storage
       // `product-images` bucket; the public URL is on the project's
       // supabase.co subdomain. Wildcard so we don't have to bake the
