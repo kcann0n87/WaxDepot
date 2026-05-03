@@ -420,9 +420,11 @@ type CollapsedRelease = {
   variantCount: number;
   lowestAskInGroup: number | null;
   lastSaleInGroup: number | null;
+  salesCount90dInGroup: number;
+  heatScore: number;
 };
 
-function collapseToVariantGroups(skus: FilteredSku[]): CollapsedRelease[] {
+function collapseToVariantGroups(skus: FilteredSku[], now: Date): CollapsedRelease[] {
   const buckets = new Map<string, FilteredSku[]>();
   for (const s of skus) {
     const key = s.variantGroup ?? s.slug;
@@ -443,6 +445,11 @@ function collapseToVariantGroups(skus: FilteredSku[]): CollapsedRelease[] {
       .filter((s): s is number => s !== null);
     const lastSaleInGroup = salesInGroup.length > 0 ? Math.max(...salesInGroup) : null;
 
+    const salesCount90dInGroup = group.reduce(
+      (sum, g) => sum + (g.salesCount90d ?? 0),
+      0,
+    );
+
     // Pick the representative SKU.
     const hobbyBox = group.find((g) => g.variantType === "hobby-box");
     const cheapest = group
@@ -456,6 +463,11 @@ function collapseToVariantGroups(skus: FilteredSku[]): CollapsedRelease[] {
       variantCount: group.length,
       lowestAskInGroup,
       lastSaleInGroup,
+      salesCount90dInGroup,
+      // Heat score — used as the popularity tiebreaker when no real
+      // sales exist yet. Same scoring as the empty-marketplace block
+      // above (release proximity, set tier, rookie class).
+      heatScore: heatScore(representative, now),
     });
   }
   // Stable order — sort by representative slug so subsequent sorts are
@@ -464,6 +476,7 @@ function collapseToVariantGroups(skus: FilteredSku[]): CollapsedRelease[] {
 }
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "popularity", label: "Popularity" },
   { value: "lowest-ask", label: "Lowest ask" },
   { value: "highest-ask", label: "Highest ask" },
   { value: "last-sale", label: "Last sale (high → low)" },
@@ -471,6 +484,8 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "oldest", label: "Oldest releases" },
   { value: "name-asc", label: "Name A → Z" },
 ];
+
+const DEFAULT_BROWSE_SORT = "popularity";
 
 function BrowseGrid({
   filtered,
@@ -487,12 +502,24 @@ function BrowseGrid({
   // 12 variants of Topps Chrome NBA become a single "Topps Chrome NBA"
   // card with a "12 variants · from $X" badge that links to the product
   // page where the variant selector lives.
-  const collapsed = collapseToVariantGroups(filtered);
+  const collapsed = collapseToVariantGroups(filtered, new Date());
+
+  // No sort param → default to popularity. Header NBA→year clicks land
+  // here without a ?sort= param so the user sees what's hot first.
+  const effectiveSort = sort ?? DEFAULT_BROWSE_SORT;
 
   // Re-sort the collapsed list using the same sort options. Sort uses
-  // the representative SKU + group-level lowest-ask.
+  // the representative SKU + group-level aggregates.
   const sorted = [...collapsed].sort((a, b) => {
-    switch (sort) {
+    switch (effectiveSort) {
+      case "popularity": {
+        // Real sales drive primary order; ties broken by heat score so
+        // brand-new releases with 0 sales still rank by release-calendar
+        // signal rather than alphabetical noise.
+        const salesDiff = b.salesCount90dInGroup - a.salesCount90dInGroup;
+        if (salesDiff !== 0) return salesDiff;
+        return b.heatScore - a.heatScore;
+      }
       case "highest-ask":
         return (b.lowestAskInGroup ?? -Infinity) - (a.lowestAskInGroup ?? -Infinity);
       case "last-sale":
@@ -537,7 +564,7 @@ function BrowseGrid({
           <select
             id="browse-sort"
             name="sort"
-            defaultValue={sort ?? "lowest-ask"}
+            defaultValue={sort ?? DEFAULT_BROWSE_SORT}
             className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-amber-400/50 focus:outline-none"
           >
             {SORT_OPTIONS.map((opt) => (

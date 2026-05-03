@@ -498,12 +498,17 @@ export async function getPriceHistoryForSku(
  * shell still renders).
  */
 export async function getCatalogWithPricing(): Promise<
-  (Sku & { lowestAsk: number | null; lastSale: number | null })[]
+  (Sku & {
+    lowestAsk: number | null;
+    lastSale: number | null;
+    salesCount90d: number;
+  })[]
 > {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return [];
 
   try {
     const supabase = await createClient();
+    const since90d = new Date(Date.now() - 90 * 86400000).toISOString();
 
     const [skusRes, listingsRes, salesRes] = await Promise.all([
       supabase
@@ -528,8 +533,18 @@ export async function getCatalogWithPricing(): Promise<
         lowestBySku.set(l.sku_id, l.price_cents);
     }
     const lastBySku = new Map<string, number>();
+    // Trailing-90-day sales count per SKU — the popularity signal for
+    // browse sort. Lifetime would over-weight legacy Topps Chrome from
+    // 5 years ago; 90d captures what's actually moving right now.
+    const salesCount90dBySku = new Map<string, number>();
     for (const s of salesRes.data ?? []) {
       if (!lastBySku.has(s.sku_id)) lastBySku.set(s.sku_id, s.price_cents);
+      if (s.sold_at >= since90d) {
+        salesCount90dBySku.set(
+          s.sku_id,
+          (salesCount90dBySku.get(s.sku_id) ?? 0) + 1,
+        );
+      }
     }
 
     return (skusRes.data ?? []).map((row) => {
@@ -538,6 +553,7 @@ export async function getCatalogWithPricing(): Promise<
         ...sku,
         lowestAsk: lowestBySku.has(sku.id) ? lowestBySku.get(sku.id)! / 100 : null,
         lastSale: lastBySku.has(sku.id) ? lastBySku.get(sku.id)! / 100 : null,
+        salesCount90d: salesCount90dBySku.get(sku.id) ?? 0,
       };
     });
   } catch (e) {
