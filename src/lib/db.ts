@@ -256,6 +256,38 @@ export async function getRecentSales(
 }
 
 /**
+ * Daily sales count for a SKU over the last N days. Used by the volume
+ * chart on the product page (TCGPlayer-style "is anyone actually trading
+ * this?" indicator under the price line). Empty days are filled with a
+ * count of 0 so the chart's x-axis is continuous and legible.
+ */
+export async function getDailySalesVolumeForSku(
+  skuId: string,
+  days = 30,
+): Promise<{ date: string; count: number }[]> {
+  const supabase = await createClient();
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data } = await supabase
+    .from("sales")
+    .select("sold_at")
+    .eq("sku_id", skuId)
+    .gte("sold_at", since);
+
+  // Pre-seed every date in range with 0 so the chart shows a flat baseline
+  // for sparse SKUs instead of skipping days.
+  const buckets = new Map<string, number>();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    buckets.set(d, 0);
+  }
+  for (const row of data ?? []) {
+    const key = (row.sold_at as string).slice(0, 10);
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  return [...buckets.entries()].map(([date, count]) => ({ date, count }));
+}
+
+/**
  * Lifetime sales count for a single SKU, plus a "trailing-30-days" velocity
  * count for the social-proof badge on the product page ("Sold 47 times ·
  * 12 in the last 30 days"). Single round-trip — service-role client isn't

@@ -10,12 +10,14 @@ import { RealtimeOrderBook } from "@/components/realtime-order-book";
 import { SellerLink } from "@/components/seller-link";
 import { PriceChart } from "@/components/price-chart";
 import { ProductImage } from "@/components/product-image";
+import { SalesVolumeChart } from "@/components/sales-volume-chart";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { TrackView } from "@/components/track-view";
 import { VariantSelector } from "@/components/variant-selector";
 import { WatchButton } from "@/components/watch-button";
 import {
   getActiveBidsForSku,
+  getDailySalesVolumeForSku,
   getHighestBidForSku,
   getLastSale,
   getListingsForSku,
@@ -131,16 +133,19 @@ export default async function ProductPage({
   if (!sku) notFound();
 
   // Parallel fetch everything the page needs for this SKU.
-  const [listings, bids, history, sales, ask, bid, last, salesCount] = await Promise.all([
-    getListingsForSku(sku.id),
-    getActiveBidsForSku(sku.id, 20),
-    getPriceHistoryForSku(sku.id, 90),
-    getRecentSales(sku.id, 6),
-    getLowestAsk(sku.id),
-    getHighestBidForSku(sku.id),
-    getLastSale(sku.id),
-    getSalesCountForSku(sku.id),
-  ]);
+  const [listings, bids, history, sales, ask, bid, last, salesCount, volume] =
+    await Promise.all([
+      getListingsForSku(sku.id),
+      getActiveBidsForSku(sku.id, 20),
+      getPriceHistoryForSku(sku.id, 90),
+      getRecentSales(sku.id, 6),
+      getLowestAsk(sku.id),
+      getHighestBidForSku(sku.id),
+      getLastSale(sku.id),
+      getSalesCountForSku(sku.id),
+      getDailySalesVolumeForSku(sku.id, 30),
+    ]);
+  const volumeTotal = volume.reduce((sum, d) => sum + d.count, 0);
 
   const previous = history.length >= 8 ? history[history.length - 8].price : last ?? 0;
   const change = last && previous ? last - previous : 0;
@@ -279,6 +284,28 @@ export default async function ProductPage({
                 </div>
               </div>
               <PriceChart data={history} />
+            </div>
+          )}
+
+          {/* Daily sales volume — TCGPlayer-style "is anyone trading this?"
+              under the price line. Only renders if there's been at least one
+              sale in the window so empty SKUs don't show a flatline. */}
+          {volumeTotal > 0 && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-[#101012] p-6">
+              <div className="mb-4 flex items-end justify-between">
+                <div>
+                  <div className="text-[10px] font-semibold tracking-[0.18em] text-sky-300/80 uppercase">
+                    Sales volume
+                  </div>
+                  <h2 className="font-display mt-1 text-2xl font-black tracking-tight text-white">
+                    Last 30 days
+                  </h2>
+                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-sky-700/40 bg-sky-500/10 px-2 py-1 text-xs font-bold text-sky-300">
+                  {volumeTotal} {volumeTotal === 1 ? "sale" : "sales"}
+                </span>
+              </div>
+              <SalesVolumeChart data={volume} />
             </div>
           )}
 
