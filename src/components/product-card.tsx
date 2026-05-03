@@ -40,8 +40,15 @@ export function ProductCard({
     : `/product/${sku.slug}`;
   // Title: drop the per-variant suffix when collapsed so it reads as
   // "the release" not "this specific box config."
+  // Dedupe brand/set when set name already includes the brand (e.g. set
+  // = "Bowman" with brand = "Bowman" should render as "2025 Bowman MLB",
+  // not "2025 Bowman Bowman MLB").
+  const setLabel =
+    sku.set === sku.brand || sku.set.startsWith(`${sku.brand} `)
+      ? sku.set
+      : `${sku.brand} ${sku.set}`;
   const title = isMultiVariant
-    ? `${sku.year} ${sku.brand} ${sku.set} ${(sku.sport as string) === "Pokemon" ? "TCG" : sku.sport}`
+    ? `${sku.year} ${setLabel} ${(sku.sport as string) === "Pokemon" ? "TCG" : sku.sport}`
     : formatSkuTitle(sku);
 
   return (

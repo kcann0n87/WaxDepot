@@ -172,17 +172,14 @@ export default async function Home({
         </section>
       )}
 
-      {/* Stats — also home only. Same reasoning. */}
+      {/* Stats — home only. The "in escrow" tile was removed at launch
+          since the dollar number isn't meaningful with no real GMV
+          flowing yet (showed up as a tiny / dishonest figure). When we
+          have steady volume, paste back a Stat block keyed to
+          stats.escrowUsd. */}
       {showStats && !isBrowseMode && (
         <section className="border-b border-white/5">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 gap-px bg-white/5 sm:grid-cols-3">
-            {stats.escrowUsd !== null && (
-              <Stat
-                k={formatStatMoney(stats.escrowUsd)}
-                v="in escrow"
-                sub="across active orders"
-              />
-            )}
+          <div className="mx-auto grid max-w-7xl grid-cols-1 gap-px bg-white/5 sm:grid-cols-2">
             {stats.sellerCount !== null && (
               <Stat
                 k={`${stats.sellerCount.toLocaleString()}+`}

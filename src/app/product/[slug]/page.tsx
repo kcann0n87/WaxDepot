@@ -39,7 +39,12 @@ import type { Metadata } from "next";
  * the page. Falls back to the full SKU title if there's only one variant.
  */
 function groupTitle(year: number, brand: string, set: string, sport: string): string {
-  return `${year} ${brand} ${set} ${sport === "Pokemon" ? "TCG" : sport}`;
+  // Dedupe brand/set when set name already includes the brand (e.g. set
+  // "Bowman" with brand "Bowman" should render as "2025 Bowman MLB", not
+  // "2025 Bowman Bowman MLB").
+  const setLabel =
+    set === brand || set.startsWith(`${brand} `) ? set : `${brand} ${set}`;
+  return `${year} ${setLabel} ${sport === "Pokemon" ? "TCG" : sport}`;
 }
 
 export async function generateMetadata({
