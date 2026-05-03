@@ -9,12 +9,17 @@ import {
   TrendingUp,
   Trophy,
 } from "lucide-react";
+import { getProfile } from "@/lib/supabase/user";
+import { getSellerTierStats } from "@/lib/db";
 import {
   TIER_FEE,
   TIER_PAYOUT_CADENCE,
   TIER_THRESHOLDS,
   type SellerTier,
 } from "@/lib/fees";
+import { formatUSDFull } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Seller Tiers · WaxDepot",
@@ -29,30 +34,37 @@ const TIER_ICON: Record<SellerTier, typeof Star> = {
   Apex: Crown,
 };
 
-const TIER_COLOR: Record<SellerTier, { ring: string; text: string; bg: string; soft: string }> = {
+const TIER_COLOR: Record<
+  SellerTier,
+  { ring: string; text: string; bg: string; soft: string; bar: string }
+> = {
   Starter: {
     ring: "border-white/15",
     text: "text-white",
     bg: "bg-white/5",
     soft: "from-white/5 to-transparent",
+    bar: "bg-white/40",
   },
   Pro: {
     ring: "border-sky-500/40",
     text: "text-sky-300",
     bg: "bg-sky-500/15",
     soft: "from-sky-500/10 to-transparent",
+    bar: "bg-sky-400",
   },
   Elite: {
     ring: "border-amber-400/50",
     text: "text-amber-300",
     bg: "bg-amber-500/15",
     soft: "from-amber-500/10 to-transparent",
+    bar: "bg-amber-400",
   },
   Apex: {
     ring: "border-fuchsia-500/50",
     text: "text-fuchsia-300",
     bg: "bg-fuchsia-500/15",
     soft: "from-fuchsia-500/10 to-transparent",
+    bar: "bg-fuchsia-400",
   },
 };
 
@@ -63,7 +75,22 @@ const TIER_BLURB: Record<SellerTier, string> = {
   Apex: "Reserved for the top sellers in the marketplace.",
 };
 
-export default function TiersPage() {
+export default async function TiersPage() {
+  // Live tier tracker for signed-in users — shown right under the hero so
+  // sellers can see their current tier and the gap to the next one without
+  // hunting through the tier cards below.
+  const profile = await getProfile();
+  let stats: { salesLast30d: number; gmvLast30dCents: number } | null = null;
+  if (profile) {
+    try {
+      stats = await getSellerTierStats(profile.id);
+    } catch (e) {
+      console.error("getSellerTierStats failed on /sell/tiers:", e);
+    }
+  }
+  const currentTier: SellerTier =
+    (profile?.seller_tier as SellerTier | null) ?? "Starter";
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       {/* Hero */}
@@ -97,6 +124,16 @@ export default function TiersPage() {
           </Link>
         </div>
       </div>
+
+      {/* Live tracker — only rendered when signed in. */}
+      {profile && stats && (
+        <TierTracker
+          currentTier={currentTier}
+          salesLast30d={stats.salesLast30d}
+          gmvLast30dCents={stats.gmvLast30dCents}
+          displayName={profile.display_name}
+        />
+      )}
 
       {/* The 4 tier cards */}
       <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -283,6 +320,155 @@ export default function TiersPage() {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Personal tier tracker shown to signed-in sellers near the top of the
+ * page. Bigger and more detailed than the dropdown badge — exposes BOTH
+ * qualification paths (sales count AND GMV) as separate progress bars
+ * so the seller can see exactly where they are on each axis.
+ */
+function TierTracker({
+  currentTier,
+  salesLast30d,
+  gmvLast30dCents,
+  displayName,
+}: {
+  currentTier: SellerTier;
+  salesLast30d: number;
+  gmvLast30dCents: number;
+  displayName: string;
+}) {
+  const next: SellerTier | null =
+    currentTier === "Starter"
+      ? "Pro"
+      : currentTier === "Pro"
+        ? "Elite"
+        : currentTier === "Elite"
+          ? "Apex"
+          : null;
+  const t = next
+    ? TIER_THRESHOLDS[next as Exclude<SellerTier, "Starter">]
+    : null;
+
+  const Icon = TIER_ICON[currentTier];
+  const colors = TIER_COLOR[currentTier];
+
+  return (
+    <div className="mx-auto mt-10 max-w-3xl">
+      <div
+        className={`overflow-hidden rounded-2xl border bg-gradient-to-br p-6 ${colors.ring} ${colors.soft} from-[8%]`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-semibold tracking-[0.18em] text-white/50 uppercase">
+              {displayName} · last 30 days
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <span
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors.bg} ${colors.text}`}
+              >
+                <Icon size={18} />
+              </span>
+              <h2 className="font-display text-2xl font-black text-white">
+                {currentTier}
+              </h2>
+              <span className="text-sm text-white/50">
+                · {(TIER_FEE[currentTier] * 100).toFixed(0)}% seller fee
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] font-semibold tracking-wider text-white/50 uppercase">
+              30-day stats
+            </div>
+            <div className="mt-1 text-sm text-white">
+              <strong>{salesLast30d}</strong> sales ·{" "}
+              <strong>{formatUSDFull(gmvLast30dCents / 100)}</strong>
+            </div>
+          </div>
+        </div>
+
+        {next && t ? (
+          <div className="mt-5">
+            <div className="mb-2 text-xs text-white/70">
+              Hit <strong className="text-white">EITHER</strong> threshold to
+              unlock <strong className={TIER_COLOR[next].text}>{next}</strong>{" "}
+              ({(TIER_FEE[next] * 100).toFixed(0)}% fee):
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <ProgressRow
+                label="Sales count"
+                current={salesLast30d}
+                target={t.sales}
+                formatter={(n) => n.toLocaleString()}
+                tier={next}
+              />
+              <ProgressRow
+                label="Sales volume"
+                current={gmvLast30dCents}
+                target={t.gmvCents}
+                formatter={(n) => formatUSDFull(n / 100)}
+                tier={next}
+              />
+            </div>
+            <p className="mt-3 text-[11px] text-white/60">
+              You also need <strong className="text-white">{t.positivePct}%+</strong>{" "}
+              positive feedback
+              {next === "Apex" && (
+                <> and <strong className="text-white">zero unresolved disputes</strong></>
+              )}
+              .
+            </p>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-2 text-xs text-fuchsia-200">
+            👑 You&apos;re at the top tier — lowest fee on the platform. Keep
+            disputes at zero to stay here.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProgressRow({
+  label,
+  current,
+  target,
+  formatter,
+  tier,
+}: {
+  label: string;
+  current: number;
+  target: number;
+  formatter: (n: number) => string;
+  tier: SellerTier;
+}) {
+  const pct = Math.min(current / target, 1);
+  const done = current >= target;
+  const colors = TIER_COLOR[tier];
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#101012] p-3">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="font-semibold text-white/70">{label}</span>
+        <span className={done ? colors.text + " font-bold" : "text-white/60"}>
+          {formatter(current)} / {formatter(target)}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+        <div
+          className={`h-full rounded-full transition-all ${done ? "bg-emerald-400" : colors.bar}`}
+          style={{ width: `${Math.round(pct * 100)}%` }}
+        />
+      </div>
+      {done && (
+        <div className="mt-1.5 text-[11px] font-semibold text-emerald-400">
+          ✓ Threshold cleared
+        </div>
+      )}
     </div>
   );
 }
