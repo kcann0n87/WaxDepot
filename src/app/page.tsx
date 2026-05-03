@@ -400,6 +400,69 @@ export default async function Home({
 
 type FilteredSku = Awaited<ReturnType<typeof getCatalogWithPricing>>[number];
 
+/**
+ * Collapse a SKU list down to one card per variant_group (the release).
+ * "2025-26 Topps Cosmic Chrome NBA Hobby Box / Hobby Case / Mega Box / ..."
+ * become a single card titled "2025-26 Topps Cosmic Chrome NBA" with a
+ * "X variants" badge and "from $LOWEST" pricing.
+ *
+ * Picks a representative SKU per group:
+ *   1. The hobby-box variant if present (most recognizable)
+ *   2. Otherwise the SKU with the lowest active ask
+ *   3. Otherwise the first one (deterministic by id)
+ *
+ * Returns an array of { sku, variantCount, lowestAskInGroup, lastSaleInGroup }
+ * so the card can show range + counts. Single-variant releases pass
+ * through unchanged with variantCount = 1.
+ */
+type CollapsedRelease = {
+  sku: FilteredSku;
+  variantCount: number;
+  lowestAskInGroup: number | null;
+  lastSaleInGroup: number | null;
+};
+
+function collapseToVariantGroups(skus: FilteredSku[]): CollapsedRelease[] {
+  const buckets = new Map<string, FilteredSku[]>();
+  for (const s of skus) {
+    const key = s.variantGroup ?? s.slug;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(s);
+  }
+
+  const out: CollapsedRelease[] = [];
+  for (const [, group] of buckets) {
+    // Lowest ask across the group, ignoring nulls.
+    const asksInGroup = group
+      .map((g) => g.lowestAsk)
+      .filter((a): a is number => a !== null);
+    const lowestAskInGroup = asksInGroup.length > 0 ? Math.min(...asksInGroup) : null;
+
+    const salesInGroup = group
+      .map((g) => g.lastSale)
+      .filter((s): s is number => s !== null);
+    const lastSaleInGroup = salesInGroup.length > 0 ? Math.max(...salesInGroup) : null;
+
+    // Pick the representative SKU.
+    const hobbyBox = group.find((g) => g.variantType === "hobby-box");
+    const cheapest = group
+      .filter((g) => g.lowestAsk !== null)
+      .sort((a, b) => (a.lowestAsk ?? 0) - (b.lowestAsk ?? 0))[0];
+    const fallback = [...group].sort((a, b) => a.id.localeCompare(b.id))[0];
+    const representative = hobbyBox ?? cheapest ?? fallback;
+
+    out.push({
+      sku: representative,
+      variantCount: group.length,
+      lowestAskInGroup,
+      lastSaleInGroup,
+    });
+  }
+  // Stable order — sort by representative slug so subsequent sorts are
+  // deterministic.
+  return out;
+}
+
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "lowest-ask", label: "Lowest ask" },
   { value: "highest-ask", label: "Highest ask" },
@@ -420,6 +483,35 @@ function BrowseGrid({
   sport?: string;
   year?: string;
 }) {
+  // Collapse multi-variant releases into one card per release. e.g. all
+  // 12 variants of Topps Chrome NBA become a single "Topps Chrome NBA"
+  // card with a "12 variants · from $X" badge that links to the product
+  // page where the variant selector lives.
+  const collapsed = collapseToVariantGroups(filtered);
+
+  // Re-sort the collapsed list using the same sort options. Sort uses
+  // the representative SKU + group-level lowest-ask.
+  const sorted = [...collapsed].sort((a, b) => {
+    switch (sort) {
+      case "highest-ask":
+        return (b.lowestAskInGroup ?? -Infinity) - (a.lowestAskInGroup ?? -Infinity);
+      case "last-sale":
+        return (b.lastSaleInGroup ?? -Infinity) - (a.lastSaleInGroup ?? -Infinity);
+      case "newest":
+        return b.sku.releaseDate.localeCompare(a.sku.releaseDate);
+      case "oldest":
+        return a.sku.releaseDate.localeCompare(b.sku.releaseDate);
+      case "name-asc":
+        return a.sku.set.localeCompare(b.sku.set);
+      case "lowest-ask":
+      default:
+        if (a.lowestAskInGroup === null && b.lowestAskInGroup === null) return 0;
+        if (a.lowestAskInGroup === null) return 1;
+        if (b.lowestAskInGroup === null) return -1;
+        return a.lowestAskInGroup - b.lowestAskInGroup;
+    }
+  });
+
   return (
     <section className="mb-16">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -428,7 +520,7 @@ function BrowseGrid({
             Browse
           </div>
           <h2 className="font-display mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
-            {filtered.length} {filtered.length === 1 ? "product" : "products"}
+            {sorted.length} {sorted.length === 1 ? "release" : "releases"}
           </h2>
         </div>
         <form
@@ -463,22 +555,23 @@ function BrowseGrid({
         </form>
       </div>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-16 text-center text-sm text-white/60">
-          No products match this filter.{" "}
+          No releases match this filter.{" "}
           <Link href="/" className="font-semibold text-amber-300 hover:underline">
             Clear filter
           </Link>
         </div>
       ) : (
         <Grid>
-          {filtered.map((s) => (
+          {sorted.map((c) => (
             <ProductCard
-              key={s.id}
-              sku={s}
-              lowestAsk={s.lowestAsk}
-              lastSale={s.lastSale}
-              presale={isPresale(s.releaseDate)}
+              key={c.sku.variantGroup ?? c.sku.id}
+              sku={c.sku}
+              lowestAsk={c.lowestAskInGroup}
+              lastSale={c.lastSaleInGroup}
+              presale={isPresale(c.sku.releaseDate)}
+              variantCount={c.variantCount}
             />
           ))}
         </Grid>
