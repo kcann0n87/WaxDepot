@@ -50,11 +50,11 @@ export async function adminUnbanUser(userId: string): Promise<Result> {
 
 export async function adminSetSellerTier(
   userId: string,
-  tier: "Starter" | "Pro" | "Elite",
+  tier: "Starter" | "Pro" | "Elite" | "Apex",
 ): Promise<Result> {
   const admin = await requireAdmin();
   if (!admin) return { error: "Forbidden" };
-  if (!["Starter", "Pro", "Elite"].includes(tier))
+  if (!["Starter", "Pro", "Elite", "Apex"].includes(tier))
     return { error: "Invalid tier." };
 
   const sb = serviceRoleClient();

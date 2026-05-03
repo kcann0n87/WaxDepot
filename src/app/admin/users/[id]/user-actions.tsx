@@ -8,7 +8,7 @@ import {
   adminToggleAdmin,
 } from "@/app/actions/admin-users";
 
-type Tier = "Starter" | "Pro" | "Elite";
+type Tier = "Starter" | "Pro" | "Elite" | "Apex";
 
 export function UserAdminActions({
   userId,
@@ -162,9 +162,10 @@ export function UserAdminActions({
             onChange={(e) => setTierVal(e.target.value as Tier)}
             className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
           >
-            <option value="Starter">Starter</option>
-            <option value="Pro">Pro</option>
-            <option value="Elite">Elite</option>
+            <option value="Starter">Starter (12%)</option>
+            <option value="Pro">Pro (10%)</option>
+            <option value="Elite">Elite (8%)</option>
+            <option value="Apex">Apex (6%)</option>
           </select>
           <button
             onClick={saveTier}

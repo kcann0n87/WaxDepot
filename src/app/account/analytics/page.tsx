@@ -157,20 +157,38 @@ export default async function SellerAnalyticsPage() {
     }
   }
 
-  // Tier progress (rolling 30 days)
+  // Tier progress (rolling 30 days). Each tier has OR logic on
+  // (sales count | GMV cents) plus a positive-feedback floor.
   const reviews = (reviewsRes.data ?? []) as { verdict: string }[];
   const positivePct =
     reviews.length > 0
       ? (reviews.filter((r) => r.verdict === "positive").length / reviews.length) * 100
       : null;
-  const proSalesNeeded = Math.max(0, TIER_THRESHOLDS.Pro.sales - orderCount);
-  const eliteSalesNeeded = Math.max(0, TIER_THRESHOLDS.Elite.sales - orderCount);
-  const onTrackForPro =
-    orderCount >= TIER_THRESHOLDS.Pro.sales &&
-    (positivePct ?? 0) >= TIER_THRESHOLDS.Pro.positivePct;
-  const onTrackForElite =
-    orderCount >= TIER_THRESHOLDS.Elite.sales &&
-    (positivePct ?? 0) >= TIER_THRESHOLDS.Elite.positivePct;
+  const gmvCents = currentRevenue;
+  const eligibleFor = (
+    threshold: { sales: number; gmvCents: number; positivePct: number },
+  ): boolean =>
+    (orderCount >= threshold.sales || gmvCents >= threshold.gmvCents) &&
+    (positivePct ?? 0) >= threshold.positivePct;
+  const onTrackForPro = eligibleFor(TIER_THRESHOLDS.Pro);
+  const onTrackForElite = eligibleFor(TIER_THRESHOLDS.Elite);
+  const onTrackForApex = eligibleFor(TIER_THRESHOLDS.Apex);
+  // Show progress vs whichever path (sales OR gmv) is closer to qualifying.
+  const tierProgress = (t: { sales: number; gmvCents: number }) =>
+    Math.min(
+      Math.max(orderCount / t.sales, gmvCents / t.gmvCents),
+      1,
+    );
+  const tierLabel = (
+    t: { sales: number; gmvCents: number; positivePct: number },
+    eligible: boolean,
+  ) => {
+    if (eligible) return "Eligible — kicks in next month";
+    const salesGap = Math.max(0, t.sales - orderCount);
+    const gmvGapDollars = Math.max(0, (t.gmvCents - gmvCents) / 100);
+    const fdbk = `${(positivePct ?? 0).toFixed(1)}%/${t.positivePct}% positive`;
+    return `${salesGap} more sales OR ${formatUSD(gmvGapDollars)} more in GMV · ${fdbk}`;
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -336,25 +354,25 @@ export default async function SellerAnalyticsPage() {
               tier="Pro"
               fee={TIER_FEE.Pro}
               cadence={TIER_PAYOUT_CADENCE.Pro}
-              progress={Math.min(orderCount / TIER_THRESHOLDS.Pro.sales, 1)}
-              progressLabel={
-                onTrackForPro
-                  ? "Eligible — kicks in next month"
-                  : `${proSalesNeeded} more sales · ${(positivePct ?? 0).toFixed(1)}%/${TIER_THRESHOLDS.Pro.positivePct}% positive`
-              }
+              progress={tierProgress(TIER_THRESHOLDS.Pro)}
+              progressLabel={tierLabel(TIER_THRESHOLDS.Pro, onTrackForPro)}
               done={onTrackForPro}
             />
             <TierRow
               tier="Elite"
               fee={TIER_FEE.Elite}
               cadence={TIER_PAYOUT_CADENCE.Elite}
-              progress={Math.min(orderCount / TIER_THRESHOLDS.Elite.sales, 1)}
-              progressLabel={
-                onTrackForElite
-                  ? "Eligible — kicks in next month"
-                  : `${eliteSalesNeeded} more sales · ${(positivePct ?? 0).toFixed(1)}%/${TIER_THRESHOLDS.Elite.positivePct}% positive`
-              }
+              progress={tierProgress(TIER_THRESHOLDS.Elite)}
+              progressLabel={tierLabel(TIER_THRESHOLDS.Elite, onTrackForElite)}
               done={onTrackForElite}
+            />
+            <TierRow
+              tier="Apex"
+              fee={TIER_FEE.Apex}
+              cadence={TIER_PAYOUT_CADENCE.Apex}
+              progress={tierProgress(TIER_THRESHOLDS.Apex)}
+              progressLabel={tierLabel(TIER_THRESHOLDS.Apex, onTrackForApex)}
+              done={onTrackForApex}
             />
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-md border border-white/10 bg-white/[0.02] p-3 text-[11px] text-white/60">

@@ -130,17 +130,37 @@ export default function TermsPage() {
             from the payout. There are no listing fees, monthly fees, or payment
             processing surcharges (we absorb Stripe&apos;s ~2.9% + $0.30 internally).
           </p>
+          <p>
+            Sellers qualify for a tier upgrade by hitting <strong>either</strong>{" "}
+            the rolling-30-day sales count <strong>or</strong> the rolling-30-day
+            sales-volume threshold, plus the minimum positive-feedback bar. Tiers
+            are recalculated nightly.
+          </p>
           <ul className="list-disc space-y-1 pl-6">
             <li>
-              <strong>Starter</strong> — 10% of item price (default)
+              <strong>Starter</strong> — 12% of item price. Default for every new
+              seller.
             </li>
             <li>
-              <strong>Pro</strong> — 8% of item price (≥100 sales last 30d, ≥99%
-              positive feedback)
+              <strong>Pro</strong> — 10% of item price.{" "}
+              <span className="text-white/70">
+                Requires ≥30 sales OR ≥$5,000 in sales (last 30d), AND ≥99%
+                positive feedback.
+              </span>
             </li>
             <li>
-              <strong>Elite</strong> — 6% of item price (≥500 sales last 30d, ≥99.5%
-              positive feedback)
+              <strong>Elite</strong> — 8% of item price.{" "}
+              <span className="text-white/70">
+                Requires ≥150 sales OR ≥$10,000 in sales (last 30d), AND ≥99.5%
+                positive feedback.
+              </span>
+            </li>
+            <li>
+              <strong>Apex</strong> — 6% of item price.{" "}
+              <span className="text-white/70">
+                Requires ≥1,000 sales OR ≥$100,000 in sales (last 30d), AND ≥99.5%
+                positive feedback, AND zero unresolved disputes.
+              </span>
             </li>
           </ul>
           <p>
