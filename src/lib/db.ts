@@ -46,6 +46,42 @@ export async function getAllSkus(): Promise<Sku[]> {
   return (data ?? []).map(rowToSku);
 }
 
+/**
+ * Lightweight rolling-30-day seller stats used by the account-menu tier
+ * badge. Returns just the two numbers needed to compute progress to the
+ * next tier — no review feedback, no dispute count (those live on the
+ * fuller analytics page). Safe to call for non-sellers; they get zeros.
+ */
+export async function getSellerTierStats(userId: string): Promise<{
+  salesLast30d: number;
+  gmvLast30dCents: number;
+}> {
+  const supabase = await createClient();
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("orders")
+    .select("status, total_cents")
+    .eq("seller_id", userId)
+    .gte("placed_at", since);
+
+  // Anything from Charged onward counts as a "sale" for tier purposes —
+  // refunds (Canceled with payment_status='refunded') don't, but neither
+  // does the in-escrow window where money's still in flight.
+  const paidStatuses = new Set([
+    "Charged",
+    "InEscrow",
+    "Shipped",
+    "Delivered",
+    "Released",
+    "Completed",
+  ]);
+  const paid = (data ?? []).filter((o) => paidStatuses.has(o.status as string));
+  return {
+    salesLast30d: paid.length,
+    gmvLast30dCents: paid.reduce((sum, o) => sum + o.total_cents, 0),
+  };
+}
+
 export async function getSkuBySlug(slug: string): Promise<Sku | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
