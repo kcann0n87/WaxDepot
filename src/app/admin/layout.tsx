@@ -7,6 +7,7 @@ import {
   Users,
   Tag,
   ScrollText,
+  Lightbulb,
 } from "lucide-react";
 import { requireAdminOrNotFound } from "@/lib/admin";
 
@@ -47,6 +48,11 @@ export default async function AdminLayout({
               label="Listings"
             />
             <NavLink href="/admin/users" icon={<Users size={14} />} label="Users" />
+            <NavLink
+              href="/admin/feedback"
+              icon={<Lightbulb size={14} />}
+              label="Feedback"
+            />
             <NavLink
               href="/admin/audit"
               icon={<ScrollText size={14} />}

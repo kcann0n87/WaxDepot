@@ -80,3 +80,44 @@ export async function submitFeedback(
   revalidatePath("/feedback");
   return { ok: true };
 }
+
+/**
+ * Admin-only: change a feedback submission's status. Used from the
+ * triage queue at /admin/feedback. Optional admin_notes lets the
+ * reviewer leave a reason ("declined — duplicate of ID 12", etc.).
+ *
+ * Status flow:
+ *   pending → reviewed (acknowledged but not yet acted on)
+ *   pending|reviewed → accepted (will ship / will add to catalog)
+ *   pending|reviewed → declined (won't act on)
+ *   accepted → shipped (the feature/SKU is now live)
+ */
+export async function adminUpdateFeedbackStatus(
+  id: string,
+  status: "pending" | "reviewed" | "accepted" | "declined" | "shipped",
+  adminNotes?: string,
+): Promise<FeedbackResult> {
+  const { requireAdmin, logAdminAction } = await import("@/lib/admin");
+  const { serviceRoleClient } = await import("@/lib/supabase/admin");
+
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+
+  const sb = serviceRoleClient();
+  const { error } = await sb
+    .from("feedback")
+    .update({
+      status,
+      admin_notes: adminNotes ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  await logAdminAction(admin.id, "update_feedback_status", "feedback", id, {
+    status,
+    admin_notes: adminNotes,
+  });
+  revalidatePath("/admin/feedback");
+  return { ok: true };
+}
