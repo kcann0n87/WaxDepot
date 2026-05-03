@@ -43,7 +43,7 @@ const SECTIONS: Section[] = [
       },
       {
         q: "Are there buyer fees?",
-        a: "No buyer fees. You pay the listed price plus shipping plus any applicable sales tax. The seller covers WaxDepot's 10% commission out of their proceeds.",
+        a: "No buyer fees. You pay the listed price plus shipping plus any applicable sales tax. The seller covers WaxDepot's 6-12% commission (by their tier) out of their proceeds.",
       },
       {
         q: "Is sales tax collected?",
@@ -52,11 +52,111 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    title: "Box types & sealed cases",
+    questions: [
+      {
+        q: "What's a sealed case?",
+        a: (
+          <>
+            A <strong>sealed case</strong> is a manufacturer&apos;s factory-sealed
+            outer carton containing N units of the same single-box variant —
+            never opened, never repackaged. A Hobby Case typically holds 12
+            hobby boxes; a Mega Case holds ~6 mega boxes; a Blaster Case holds
+            ~20 blasters; a Pokemon Booster Box Case holds ~6 booster boxes.
+            Each is its own SKU with its own market price (a sealed case
+            usually trades at a slight discount per unit vs. buying N
+            individual boxes — buyers pay a premium for guaranteed sealed
+            provenance from the case-fresh layer).
+          </>
+        ),
+      },
+      {
+        q: "What's the difference between Hobby, Mega, Blaster, and Hanger?",
+        a: (
+          <>
+            All four are configurations of the same release, with different
+            content and distribution:
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-white/80">
+              <li>
+                <strong className="text-white">Hobby Box</strong> — premium
+                content (autos, hits, full parallel runs) sold through hobby
+                shops + LCS only. The hobby flagship.
+              </li>
+              <li>
+                <strong className="text-white">Jumbo / Hobby Jumbo (HTA)</strong> —
+                hobby box with more packs + more hits per box. Limited
+                distribution.
+              </li>
+              <li>
+                <strong className="text-white">Mega Box</strong> — retail-channel
+                box (Target/Walmart) with reduced content but exclusive
+                retail-only parallels.
+              </li>
+              <li>
+                <strong className="text-white">Blaster / Hanger</strong> —
+                small-format retail boxes with the lowest hit ratios. Different
+                pack counts (Blaster ~6 packs, Hanger ~30 cards loose). Both
+                often have exclusive parallels.
+              </li>
+            </ul>
+          </>
+        ),
+      },
+      {
+        q: "What's FOTL and First Day Issue?",
+        a: (
+          <>
+            Both are early-print premium variants:
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-white/80">
+              <li>
+                <strong className="text-white">FOTL (First Off The Line)</strong> —
+                Panini&apos;s pre-release dutch-auction edition with exclusive
+                parallels. Most common on Prizm.
+              </li>
+              <li>
+                <strong className="text-white">First Day Issue (FDI)</strong> —
+                Topps&apos; equivalent. Adds 1 bonus FDI autograph + 2 numbered
+                FDI parallels per box. Most common on Topps Chrome.
+              </li>
+            </ul>
+            They&apos;re different SKUs with their own markets — the FDI/FOTL
+            chase cards are typically worth more than the same card pulled from
+            a regular hobby box.
+          </>
+        ),
+      },
+      {
+        q: "What about Pokemon Booster Boxes and Elite Trainer Boxes?",
+        a: (
+          <>
+            Pokemon TCG sealed product breaks down into:
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-white/80">
+              <li>
+                <strong className="text-white">Booster Box</strong> — 36 sealed
+                booster packs. The hobby-grade product for box-breakers.
+              </li>
+              <li>
+                <strong className="text-white">Elite Trainer Box (ETB)</strong> —
+                8-9 packs plus accessories (sleeves, dividers, dice, code cards).
+                Popular with collectors who keep the storage box.
+              </li>
+              <li>
+                <strong className="text-white">Booster Box Case</strong> — sealed
+                case of ~6 booster boxes. The case-fresh chase for high-volume
+                breakers.
+              </li>
+            </ul>
+          </>
+        ),
+      },
+    ],
+  },
+  {
     title: "Selling",
     questions: [
       {
         q: "What can I list?",
-        a: "Factory-sealed sports trading card products in original manufacturer packaging — Hobby Box, Jumbo Box, Mega Box, Blaster Box, Hanger Box, Value Box, FotL Hobby Box, etc. No singles, no breaks, no graded slabs, no opened or resealed product.",
+        a: "Factory-sealed sports trading card products in original manufacturer packaging — Hobby Box, Jumbo Box, Mega Box, Blaster Box, Hanger Box, FOTL/FDI Hobby Box, sealed cases of any of the above, plus Pokemon Booster Boxes and Elite Trainer Boxes. No singles, no breaks, no graded slabs, no opened or resealed product.",
       },
       {
         q: "How do I get paid?",
@@ -64,11 +164,24 @@ const SECTIONS: Section[] = [
       },
       {
         q: "What's the fee structure?",
-        a: "10% (Starter) on every sale. Drops to 8% (Pro) at 100+ sales/month with 99%+ positive feedback, and 6% (Elite) at 500+ sales/month with 99.5%+ feedback. No listing fees, no monthly fees, no payment processing surcharge — we absorb Stripe's 2.9% + $0.30 internally.",
+        a: (
+          <>
+            Four-tier ladder: <strong>12%</strong> (Starter, default), <strong>10%</strong>{" "}
+            (Pro at 30+ sales OR $5k GMV/30d), <strong>8%</strong> (Elite at 150+ sales
+            OR $10k GMV), <strong>6%</strong> (Apex at 1,000+ sales OR $100k GMV).
+            All require positive-feedback floors. Once you hit a tier the benefits
+            stay locked through the end of the next calendar month — re-qualifying
+            extends. No listing fees, no monthly fees, no payment processing surcharge —
+            we absorb Stripe&apos;s 2.9% + $0.30 internally.{" "}
+            <Link href="/sell/tiers" className="text-amber-300 hover:underline">
+              See full tier breakdown →
+            </Link>
+          </>
+        ),
       },
       {
         q: "How fast do I have to ship?",
-        a: "Within 2 business days of order placement. Items priced at $200+ require signature confirmation; items priced at $1,000+ require signature confirmation AND insurance for the full sale value. Use any tracked carrier (USPS, UPS, FedEx) — drop the tracking number into your seller dashboard.",
+        a: "Within 2 business days of order placement. Items priced at $500+ require signature confirmation; items priced at $1,000+ require signature confirmation AND insurance for the full sale value. Use any tracked carrier (USPS, UPS, FedEx) — drop the tracking number into your seller dashboard.",
       },
       {
         q: "Can I list pre-orders?",
