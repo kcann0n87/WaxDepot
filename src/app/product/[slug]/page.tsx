@@ -9,7 +9,7 @@ import { ProductJsonLd } from "@/components/product-jsonld";
 import { RealtimeOrderBook } from "@/components/realtime-order-book";
 import { SellerLink } from "@/components/seller-link";
 import { PriceChart } from "@/components/price-chart";
-import { ProductImage } from "@/components/product-image";
+import { ProductImageWithPreview } from "@/components/product-image-with-preview";
 import { SalesVolumeChart } from "@/components/sales-volume-chart";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { TrackView } from "@/components/track-view";
@@ -186,7 +186,7 @@ export default async function ProductPage({
         <div>
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#101012] p-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-[280px_1fr]">
-              <ProductImage sku={sku} size="lg" className="aspect-[4/5] rounded-xl border border-white/5" />
+              <ProductImageWithPreview sku={sku} className="aspect-[4/5] rounded-xl border border-white/5" />
 
               <div>
                 <div className="flex items-start justify-between gap-3">
@@ -257,6 +257,7 @@ export default async function ProductPage({
                 variants={variants.map((v) => ({
                   variantType: v.variantType ?? "box",
                   lowestAskCents: v.lowestAskCents,
+                  imageUrl: v.imageUrl ?? null,
                 }))}
               />
             </div>

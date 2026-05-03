@@ -12,7 +12,21 @@ import { formatUSD } from "@/lib/utils";
 export type VariantOption = {
   variantType: string;
   lowestAskCents: number | null;
+  imageUrl?: string | null;
 };
+
+/**
+ * Dispatch a global "waxdepot:variant-preview" CustomEvent so the
+ * ProductImageWithPreview client component on the same page swaps to
+ * the previewed image. Decoupled from React context to avoid forcing
+ * the entire image card subtree into client.
+ */
+function emitPreview(imageUrl: string | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("waxdepot:variant-preview", { detail: { imageUrl } }),
+  );
+}
 
 const GROUP_ORDER: VariantGroup[] = ["box", "case", "tcg"];
 
@@ -100,6 +114,10 @@ function VariantChip({
       href={`/product/${groupSlug}?variant=${variant.variantType}`}
       aria-current={active ? "page" : undefined}
       scroll={false}
+      onMouseEnter={() => emitPreview(variant.imageUrl ?? null)}
+      onMouseLeave={() => emitPreview(null)}
+      onFocus={() => emitPreview(variant.imageUrl ?? null)}
+      onBlur={() => emitPreview(null)}
       className={
         active
           ? "rounded-md border border-amber-400/60 bg-amber-500/[0.08] px-3 py-2 text-sm font-bold text-amber-200 shadow-md shadow-amber-500/10"
