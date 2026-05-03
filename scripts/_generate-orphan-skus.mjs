@@ -18,6 +18,21 @@ const SEED = path.join(ROOT, "scripts", "seed-data.mjs");
 
 // Variants ordered longest-suffix-first so suffix matching is greedy.
 const VARIANTS = [
+  // Case variants (longest suffixes first)
+  "first-day-issue-hobby-jumbo-case",
+  "first-day-issue-hobby-case",
+  "fotl-hobby-case",
+  "elite-trainer-box-case",
+  "booster-box-case",
+  "hobby-jumbo-case",
+  "hobby-case",
+  "jumbo-case",
+  "mega-case",
+  "blaster-case",
+  "hanger-case",
+  "value-case",
+  "inner-case",
+  // Box variants
   "first-day-issue-hobby-jumbo-box",
   "first-day-issue-hobby-box",
   "fotl-hobby-box",
@@ -25,18 +40,16 @@ const VARIANTS = [
   "elite-trainer-box",
   "booster-box",
   "hobby-box",
-  "hobby-case",
   "jumbo-box",
   "mega-box",
   "blaster-box",
   "hanger-box",
   "value-box",
-  "inner-case",
 ];
 
 const PRODUCT_LABELS = {
+  // Boxes
   "hobby-box": "Hobby Box",
-  "hobby-case": "Hobby Case",
   "jumbo-box": "Jumbo Box",
   "hobby-jumbo-box": "Hobby Jumbo Box",
   "mega-box": "Mega Box",
@@ -48,6 +61,19 @@ const PRODUCT_LABELS = {
   "first-day-issue-hobby-jumbo-box": "First Day Issue Jumbo Box",
   "booster-box": "Booster Box",
   "elite-trainer-box": "Elite Trainer Box",
+  // Cases
+  "hobby-case": "Hobby Case",
+  "jumbo-case": "Jumbo Case",
+  "hobby-jumbo-case": "Hobby Jumbo Case",
+  "mega-case": "Mega Case",
+  "blaster-case": "Blaster Case",
+  "hanger-case": "Hanger Case",
+  "value-case": "Value Case",
+  "fotl-hobby-case": "FOTL Hobby Case",
+  "first-day-issue-hobby-case": "First Day Issue Hobby Case",
+  "first-day-issue-hobby-jumbo-case": "First Day Issue Jumbo Case",
+  "booster-box-case": "Booster Box Case",
+  "elite-trainer-box-case": "Elite Trainer Box Case",
   "inner-case": "Inner Case",
 };
 
