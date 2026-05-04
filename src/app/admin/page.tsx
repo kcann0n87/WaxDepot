@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   Clock,
   DollarSign,
+  Inbox,
+  Mail,
   Package2,
   Receipt,
   ShieldCheck,
@@ -40,6 +42,9 @@ async function loadOverview() {
     topSellersRes,
     topSkusRes,
     staleEscrowRes,
+    waitlistRes,
+    waitlistEmailsRes,
+    inviteLogsRes,
   ] = await Promise.all([
     // Counters in one round-trip via parallel sub-queries
     Promise.all([
@@ -112,6 +117,19 @@ async function loadOverview() {
       .lt("placed_at", fiveDaysAgo)
       .order("placed_at", { ascending: true })
       .limit(10),
+
+    // Waitlist counter (total) + recent-7d for the trend pill.
+    sb.from("waitlist").select("*", { count: "exact", head: true }),
+    // Pull all waitlist emails so we can compute pending = total minus
+    // those already invited per admin_actions. Cheap (just text).
+    sb.from("waitlist").select("email"),
+    // Invite logs — used both for the "pending invites" derivation and
+    // a 7d-rate signal.
+    sb
+      .from("admin_actions")
+      .select("created_at, details")
+      .eq("action", "invite_user")
+      .order("created_at", { ascending: false }),
   ]);
 
   const [
@@ -222,6 +240,20 @@ async function loadOverview() {
     },
   );
 
+  // Waitlist breakdown — pending = waitlist emails with no invite log yet.
+  const waitlistTotal = waitlistRes.count ?? 0;
+  const invitedEmails = new Set(
+    (inviteLogsRes.data ?? [])
+      .map((r) => (r.details as { email?: string } | null)?.email?.toLowerCase())
+      .filter((e): e is string => !!e),
+  );
+  const waitlistPending = (waitlistEmailsRes.data ?? []).filter(
+    (w) => !invitedEmails.has(w.email.toLowerCase()),
+  ).length;
+  const invites7 = (inviteLogsRes.data ?? []).filter(
+    (r) => r.created_at >= sevenDaysAgo,
+  ).length;
+
   return {
     orderCount: orderCount ?? 0,
     openDisputes: openDisputes ?? 0,
@@ -238,6 +270,9 @@ async function loadOverview() {
     topSkus,
     stale,
     lastActions: actionsRes.data ?? [],
+    waitlistTotal,
+    waitlistPending,
+    invites7,
   };
 }
 
@@ -248,20 +283,27 @@ export default async function AdminOverview() {
     <div>
       <h1 className="font-display mb-6 text-3xl font-black text-white">Overview</h1>
 
-      {/* KPI row — money + signups */}
+      {/* Beta-state row — surface waitlist + invite bottleneck. Once we
+          open public sign-up, swap the focus here back to GMV. */}
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
-          icon={<TrendingUp size={14} />}
-          label="GMV · 30d"
-          value={formatUSDFull(data.gmv30)}
-          sub={`${formatUSDFull(data.gmv7)} last 7d`}
-          accent="amber"
+          icon={<Inbox size={14} />}
+          label="Waitlist · total"
+          value={data.waitlistTotal}
+          sub={
+            data.waitlistPending > 0
+              ? `${data.waitlistPending} awaiting invite`
+              : "all caught up"
+          }
+          accent={data.waitlistPending > 0 ? "amber" : undefined}
+          href="/admin/waitlist"
         />
         <Stat
-          icon={<DollarSign size={14} />}
-          label="Est. fees · 30d"
-          value={formatUSDFull(data.fees30Estimate)}
-          sub="assumes Starter tier"
+          icon={<Mail size={14} />}
+          label="Invites · 7d"
+          value={data.invites7}
+          sub="sent this week"
+          href="/admin/invite"
         />
         <Stat
           icon={<UserPlus size={14} />}
@@ -277,14 +319,35 @@ export default async function AdminOverview() {
         />
       </div>
 
-      {/* Existing operational counters */}
-      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon={<Receipt size={14} />} label="Total orders" value={data.orderCount} />
+      {/* KPI row — money */}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
+          icon={<TrendingUp size={14} />}
+          label="GMV · 30d"
+          value={formatUSDFull(data.gmv30)}
+          sub={`${formatUSDFull(data.gmv7)} last 7d`}
+          accent="amber"
+        />
+        <Stat
+          icon={<DollarSign size={14} />}
+          label="Est. fees · 30d"
+          value={formatUSDFull(data.fees30Estimate)}
+          sub="assumes Starter tier"
+        />
+        <Stat
+          icon={<Receipt size={14} />}
+          label="Total orders"
+          value={data.orderCount}
+        />
         <Stat
           icon={<ShieldCheck size={14} />}
           label="In escrow"
           value={formatUSDFull(data.escrowSum)}
         />
+      </div>
+
+      {/* Operational counters — alerts + catalog size */}
+      <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-2">
         <Stat
           icon={<AlertTriangle size={14} />}
           label="Open disputes"
@@ -462,12 +525,14 @@ function Stat({
   value,
   sub,
   accent,
+  href,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
   sub?: string;
   accent?: "rose" | "amber";
+  href?: string;
 }) {
   const border =
     accent === "rose"
@@ -481,8 +546,8 @@ function Stat({
       : accent === "amber"
         ? "text-amber-300"
         : "text-white";
-  return (
-    <div className={`rounded-xl border bg-[#101012] p-4 ${border}`}>
+  const inner = (
+    <>
       <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-white/60 uppercase">
         {icon}
         {label}
@@ -491,6 +556,15 @@ function Stat({
         {value}
       </div>
       {sub && <div className="mt-1 text-[11px] text-white/60">{sub}</div>}
-    </div>
+    </>
   );
+  const baseClass = `block rounded-xl border bg-[#101012] p-4 ${border}`;
+  if (href) {
+    return (
+      <Link href={href} className={`${baseClass} transition hover:border-white/20`}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={baseClass}>{inner}</div>;
 }
