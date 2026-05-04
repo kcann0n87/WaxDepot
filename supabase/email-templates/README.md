@@ -28,15 +28,22 @@ Still in the dashboard → **Authentication → Emails → Email Templates**. Ea
 | Supabase tab | Template file |
 |---|---|
 | Confirm signup | `confirmation.html` |
+| Invite user | `invite.html` |
 | Reset password | `recovery.html` |
 | Magic link | `magic-link.html` |
 | Change email address | `email-change.html` |
 
 Subject lines you can use:
 - Confirm signup: `Confirm your WaxDepot email`
+- Invite user: `You're in — welcome to WaxDepot`
 - Reset password: `Reset your WaxDepot password`
 - Magic link: `Your WaxDepot sign-in link`
 - Change email: `Confirm your new WaxDepot email`
+
+The **Invite user** template is the one new admins will hit first — it's
+sent every time you click "Send invite" in `/admin/invite` or
+`/admin/waitlist`. While we're invite-only beta, this is the front door
+for every new user, so prioritize getting it pasted in.
 
 Click **Save** on each.
 
