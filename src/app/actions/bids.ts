@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { serviceRoleClient } from "@/lib/supabase/admin";
+import { emailBidPlaced } from "@/lib/email";
 
 export type CreateBidResult = {
   error?: string;
@@ -55,6 +57,12 @@ export async function createBid(formData: FormData): Promise<CreateBidResult> {
     const skuRel = Array.isArray(data?.sku) ? data.sku[0] : data?.sku;
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     const slug = skuMeta?.slug;
+    const productTitle = skuMeta
+      ? `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`
+      : "your bid";
+    const productHref = slug
+      ? `https://waxdepot.io/product/${slug}`
+      : "https://waxdepot.io/account";
 
     // Fan out a "bid-placed" notification to the buyer for activity feed.
     if (skuMeta) {
@@ -62,9 +70,52 @@ export async function createBid(formData: FormData): Promise<CreateBidResult> {
         user_id: user.id,
         type: "bid-placed",
         title: "Bid placed",
-        body: `Your bid of $${(priceCents / 100).toFixed(2)} on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} is live.`,
+        body: `Your bid of $${(priceCents / 100).toFixed(2)} on ${productTitle} is live.`,
         href: slug ? `/product/${slug}` : "/account",
       });
+    }
+
+    // Notify every seller with an active listing on this SKU + email the
+    // buyer a confirmation. Service role for the seller fan-out (the
+    // buyer can't write notifications for other users under RLS); regular
+    // supabase client for the buyer's auth email lookup. Both best-effort.
+    const admin = serviceRoleClient();
+    try {
+      const [{ data: activeListings }, { data: buyerAuth }] = await Promise.all(
+        [
+          admin
+            .from("listings")
+            .select("seller_id")
+            .eq("sku_id", skuId)
+            .eq("status", "Active"),
+          admin.auth.admin.getUserById(user.id),
+        ],
+      );
+      const sellerIds = Array.from(
+        new Set((activeListings ?? []).map((r) => r.seller_id)),
+      );
+      if (sellerIds.length > 0 && skuMeta) {
+        await admin.from("notifications").insert(
+          sellerIds.map((sellerId) => ({
+            user_id: sellerId,
+            type: "bid-placed",
+            title: "New bid on your listing",
+            body: `Someone bid $${(priceCents / 100).toFixed(2)} on ${productTitle}. Accept it from your listing.`,
+            href: slug ? `/product/${slug}` : "/account/listings",
+          })),
+        );
+      }
+      if (buyerAuth?.user?.email && skuMeta) {
+        await emailBidPlaced({
+          to: buyerAuth.user.email,
+          productTitle,
+          amountDollars: priceCents / 100,
+          expiresInDays: days,
+          productHref,
+        });
+      }
+    } catch (e) {
+      console.error("createBid fan-out failed:", e);
     }
 
     revalidatePath("/account");

@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { serviceRoleClient } from "@/lib/supabase/admin";
+import { emailDisputeOpened } from "@/lib/email";
 
 export type SubmitDisputeResult = { ok?: boolean; error?: string; disputeId?: string };
 
@@ -33,7 +35,9 @@ export async function submitDispute(formData: FormData): Promise<SubmitDisputeRe
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, status")
+      .select(
+        "id, buyer_id, seller_id, status, sku:skus!orders_sku_id_fkey(year, brand, product)",
+      )
       .eq("id", orderId)
       .maybeSingle();
     if (!order) return { error: "Order not found." };
@@ -82,14 +86,38 @@ export async function submitDispute(formData: FormData): Promise<SubmitDisputeRe
       return { error: "Could not file the dispute. Please try again." };
     }
 
-    // Notify the seller.
-    await supabase.from("notifications").insert({
+    // Notify the seller. Service role because we're inserting on behalf
+    // of a different user (the seller) and RLS would block self-only writes.
+    const admin = serviceRoleClient();
+    await admin.from("notifications").insert({
       user_id: order.seller_id,
       type: "new-message",
       title: "Dispute opened on your sale",
       body: `${disputeId} — buyer reports "${reason}". You have 48 hours to respond.`,
       href: `/account/orders/${orderId}`,
     });
+
+    // Email the seller. Best-effort — failures don't roll back the dispute.
+    try {
+      const { data: sellerAuth } = await admin.auth.admin.getUserById(
+        order.seller_id,
+      );
+      if (sellerAuth?.user?.email) {
+        const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
+        const productTitle = skuRel
+          ? `${skuRel.year} ${skuRel.brand} ${skuRel.product}`
+          : `order ${orderId}`;
+        await emailDisputeOpened({
+          to: sellerAuth.user.email,
+          productTitle,
+          reason,
+          disputeId,
+          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+        });
+      }
+    } catch (e) {
+      console.error("emailDisputeOpened failed:", e);
+    }
 
     revalidatePath(`/account/orders/${orderId}`);
     revalidatePath("/account/disputes");

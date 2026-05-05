@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { serviceRoleClient } from "@/lib/supabase/admin";
 
 export type NotificationType =
   | "bid-placed"
@@ -126,8 +127,10 @@ export async function markAllNotificationsRead(): Promise<{ ok: boolean }> {
 
 /**
  * Server-only helper for actions that need to fan out a notification.
- * Idempotent on (user_id, created_at) only by the millisecond — fine for events
- * that are themselves rare per user.
+ * Uses service role because the typical caller is acting AS user A
+ * (e.g. buyer placing a bid) but writing a notification FOR user B
+ * (the seller). RLS restricts inserts to auth.uid() = user_id, which
+ * would block cross-user fanout.
  */
 export async function createNotification(params: {
   userId: string;
@@ -137,8 +140,8 @@ export async function createNotification(params: {
   href: string;
 }): Promise<void> {
   try {
-    const supabase = await createClient();
-    await supabase.from("notifications").insert({
+    const sb = serviceRoleClient();
+    await sb.from("notifications").insert({
       user_id: params.userId,
       type: params.type,
       title: params.title,
