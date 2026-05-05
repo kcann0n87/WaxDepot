@@ -49,7 +49,7 @@ export default async function AccountPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/account");
 
-  const [ordersRes, bidsRes, listingsRes] = await Promise.all([
+  const [ordersRes, bidsRes, listingsRes, profileRes] = await Promise.all([
     supabase
       .from("orders")
       .select(
@@ -74,6 +74,11 @@ export default async function AccountPage() {
       .eq("seller_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10),
+    supabase
+      .from("profiles")
+      .select("username, display_name, is_seller, created_at")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
 
   type OrderRow = {
@@ -144,6 +149,14 @@ export default async function AccountPage() {
   const activeListings = myListings.filter((l) => l.status === "Active").length;
   const hasAnyActivity = orders.length + myBids.length + myListings.length > 0;
 
+  // First-impression state for invitees who just clicked their magic link.
+  // Display name defaults to the email-derived username when the invite
+  // didn't include one — that's a good signal to nudge them to set it.
+  const profile = profileRes.data;
+  const firstName = profile?.display_name?.split(/\s+/)[0] ?? null;
+  const displayNameIsAuto =
+    !!profile && profile.display_name === profile.username;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -182,30 +195,48 @@ export default async function AccountPage() {
       </div>
 
       {!hasAnyActivity && (
-        <div className="mb-10 rounded-2xl border border-amber-700/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
-            <Box size={22} />
+        <div className="mb-10 overflow-hidden rounded-2xl border border-amber-700/30 bg-gradient-to-br from-amber-500/[0.08] via-amber-500/[0.03] to-transparent p-8">
+          <div className="text-[10px] font-semibold tracking-[0.28em] text-amber-300/80 uppercase">
+            You're in
           </div>
-          <h2 className="font-display mt-4 text-xl font-black text-white">
-            Welcome to your dashboard
+          <h2 className="font-display mt-2 text-3xl font-black text-white sm:text-4xl">
+            Welcome{firstName ? `, ${firstName}` : ""}.
           </h2>
-          <p className="mt-1 text-sm text-white/60">
-            Nothing here yet. Browse the marketplace to place your first bid, or list a box you&apos;re selling.
+          <p className="mt-2 max-w-xl text-sm text-white/60">
+            WaxDepot is invite-only right now and you've got a seat.
+            Three quick things to get the most out of it:
           </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <Link
+
+          <ol className="mt-6 grid gap-3 sm:grid-cols-3">
+            <SetupCard
+              done={!displayNameIsAuto}
+              step={1}
+              title="Set your display name"
+              body={
+                displayNameIsAuto
+                  ? `We've got you as @${profile?.username ?? "—"} for now — pick a name buyers and sellers will see.`
+                  : "Done — buyers and sellers will see this on your listings and orders."
+              }
+              cta={displayNameIsAuto ? "Update name →" : "Edit profile"}
+              href="/account/settings"
+            />
+            <SetupCard
+              done={false}
+              step={2}
+              title="Browse the catalog"
+              body="280+ sealed boxes across NBA, MLB, NFL, NHL, Soccer, and Pokemon TCG. Real bid + ask on every one."
+              cta="Open marketplace →"
               href="/"
-              className="rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
-            >
-              Browse marketplace
-            </Link>
-            <Link
-              href="/sell"
-              className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-bold text-white transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300"
-            >
-              List a box
-            </Link>
-          </div>
+            />
+            <SetupCard
+              done={false}
+              step={3}
+              title="Buy or sell"
+              body="Place a bid on a box you want, or list one from your collection. Escrow protects both sides."
+              cta={profile?.is_seller ? "List a box →" : "Become a seller →"}
+              href={profile?.is_seller ? "/sell" : "/sell/tiers"}
+            />
+          </ol>
         </div>
       )}
 
@@ -431,6 +462,54 @@ function EmptyRow({ message }: { message: string }) {
     <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-8 text-center text-sm text-white/50">
       {message}
     </div>
+  );
+}
+
+function SetupCard({
+  step,
+  done,
+  title,
+  body,
+  cta,
+  href,
+}: {
+  step: number;
+  done: boolean;
+  title: string;
+  body: string;
+  cta: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`group flex flex-col gap-2 rounded-xl border p-4 transition ${
+        done
+          ? "border-emerald-700/40 bg-emerald-500/[0.05] hover:border-emerald-500/60"
+          : "border-white/10 bg-[#101012] hover:border-amber-400/40 hover:bg-amber-500/[0.04]"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+            done
+              ? "bg-emerald-500/20 text-emerald-300"
+              : "bg-amber-500/15 text-amber-300"
+          }`}
+        >
+          {done ? "✓" : step}
+        </span>
+        <h3 className="text-sm font-bold text-white">{title}</h3>
+      </div>
+      <p className="text-xs leading-relaxed text-white/55">{body}</p>
+      <div
+        className={`mt-1 text-xs font-semibold transition group-hover:translate-x-0.5 ${
+          done ? "text-emerald-300" : "text-amber-300"
+        }`}
+      >
+        {cta}
+      </div>
+    </Link>
   );
 }
 
