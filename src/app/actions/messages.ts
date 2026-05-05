@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { serviceRoleClient } from "@/lib/supabase/admin";
 
 export type ConversationListItem = {
   id: string;
@@ -246,6 +247,35 @@ export async function sendMessage(
       .from("conversations")
       .update({ last_message_at: now, unread: true })
       .eq("id", conversationId);
+
+    // Notify the other party — service role because we're inserting a
+    // notification for someone other than the auth'd user (RLS would
+    // block self-only writes). Best-effort: failures don't block the send.
+    try {
+      const recipientId = c.buyer_id === user.id ? c.other_id : c.buyer_id;
+      const admin = serviceRoleClient();
+      const { data: senderProfile } = await admin
+        .from("profiles")
+        .select("display_name, username")
+        .eq("id", user.id)
+        .maybeSingle();
+      const senderName =
+        senderProfile?.display_name ?? senderProfile?.username ?? "Someone";
+      const preview = trimmed
+        ? trimmed.length > 90
+          ? `${trimmed.slice(0, 87)}…`
+          : trimmed
+        : `Sent ${images.length} image${images.length === 1 ? "" : "s"}`;
+      await admin.from("notifications").insert({
+        user_id: recipientId,
+        type: "new-message",
+        title: `New message from ${senderName}`,
+        body: preview,
+        href: `/account/messages/${conversationId}`,
+      });
+    } catch (e) {
+      console.error("sendMessage notify failed:", e);
+    }
 
     revalidatePath(`/account/messages/${conversationId}`);
     revalidatePath("/account/messages");
