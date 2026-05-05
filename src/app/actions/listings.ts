@@ -153,6 +153,49 @@ export async function createListing(formData: FormData): Promise<CreateListingRe
     const skuRel = Array.isArray(data?.sku) ? data.sku[0] : data?.sku;
     const slug = (skuRel as { slug?: string } | null)?.slug;
 
+    // Notify everyone who follows this seller about the new listing. Bulk
+    // insert via service role; failures don't block the listing. We pull
+    // the SKU title separately because the listing's sku join only has slug.
+    if (slug) {
+      try {
+        const [{ data: followers }, { data: skuMeta }, { data: sellerProfile }] =
+          await Promise.all([
+            admin
+              .from("follows")
+              .select("follower_id")
+              .eq("followed_id", user.id),
+            admin
+              .from("skus")
+              .select("year, brand, product")
+              .eq("id", skuId)
+              .maybeSingle(),
+            admin
+              .from("profiles")
+              .select("display_name, username")
+              .eq("id", user.id)
+              .maybeSingle(),
+          ]);
+        const followerIds = (followers ?? []).map((f) => f.follower_id);
+        if (followerIds.length > 0 && skuMeta) {
+          const sellerName =
+            sellerProfile?.display_name ?? sellerProfile?.username ?? "A seller";
+          const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
+          const priceDisplay = (priceCents / 100).toFixed(0);
+          await admin.from("notifications").insert(
+            followerIds.map((followerId) => ({
+              user_id: followerId,
+              type: "new-listing" as const,
+              title: `${sellerName} just listed`,
+              body: `${productTitle} for $${priceDisplay}`,
+              href: `/product/${slug}`,
+            })),
+          );
+        }
+      } catch (e) {
+        console.error("createListing follower notify failed:", e);
+      }
+    }
+
     revalidatePath("/");
     revalidatePath("/account");
     if (slug) revalidatePath(`/product/${slug}`);
