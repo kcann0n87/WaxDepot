@@ -7,7 +7,9 @@ import { stripe } from "@/lib/stripe";
 import { TIER_FEE, type SellerTier } from "@/lib/fees";
 import {
   emailBidAccepted,
+  emailBidDeclined,
   emailFundsReleased,
+  emailOrderCanceled,
   emailOrderShipped,
 } from "@/lib/email";
 import { createTracker } from "@/lib/easypost";
@@ -227,13 +229,25 @@ export async function declineBid(formData: FormData): Promise<ActionResult> {
     const skuRel = Array.isArray(bid.sku) ? bid.sku[0] : bid.sku;
     const skuMeta = skuRel as { slug?: string; year?: number; brand?: string; product?: string } | null;
     if (skuMeta) {
+      const productTitle = `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`;
       await admin.from("notifications").insert({
         user_id: bid.buyer_id,
-        type: "outbid",
+        type: "bid-declined",
         title: "Bid declined",
-        body: `Your $${(bid.price_cents / 100).toFixed(0)} bid on ${skuMeta.year} ${skuMeta.brand} ${skuMeta.product} was declined. You can re-bid at a higher price.`,
+        body: `Your $${(bid.price_cents / 100).toFixed(0)} bid on ${productTitle} was declined. You can re-bid at a higher price.`,
         href: skuMeta.slug ? `/product/${skuMeta.slug}` : "/account",
       });
+      const buyerEmail = await getUserEmail(bid.buyer_id);
+      if (buyerEmail) {
+        await emailBidDeclined({
+          to: buyerEmail,
+          productTitle,
+          amountDollars: bid.price_cents / 100,
+          productHref: skuMeta.slug
+            ? `https://waxdepot.io/product/${skuMeta.slug}`
+            : "https://waxdepot.io/account",
+        });
+      }
     }
 
     revalidatePath(`/account/listings/${listing.id}`);
@@ -795,7 +809,9 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id, buyer_id, seller_id, status, listing_id")
+      .select(
+        "id, buyer_id, seller_id, status, listing_id, total_cents, sku:skus!orders_sku_id_fkey(year, brand, product)",
+      )
       .eq("id", orderId)
       .maybeSingle();
     if (!order) return { error: "Order not found." };
@@ -840,16 +856,42 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
     // Notify the other party so they're not left wondering.
     const otherUserId =
       canceledBy === "seller" ? order.buyer_id : order.seller_id;
+    const otherRole: "buyer" | "seller" =
+      canceledBy === "seller" ? "buyer" : "seller";
+    const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
+    const skuMeta = skuRel as { year?: number; brand?: string; product?: string } | null;
+    const productTitle = skuMeta
+      ? `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`
+      : `order ${orderId}`;
     await admin.from("notifications").insert({
       user_id: otherUserId,
-      type: canceledBy === "seller" ? "order-shipped" : "outbid",
+      type: "order-canceled",
       title:
         canceledBy === "seller"
           ? "Seller canceled your order"
           : "Buyer canceled an order",
-      body: `Order ${orderId} was canceled. Reason: ${reason}`,
+      body: `${productTitle} was canceled. Reason: ${reason}`,
       href: `/account/orders/${orderId}`,
     });
+
+    // Email the OTHER party — the canceler already saw the action confirmed
+    // in the UI. Best-effort.
+    try {
+      const otherEmail = await getUserEmail(otherUserId);
+      if (otherEmail) {
+        await emailOrderCanceled({
+          to: otherEmail,
+          role: otherRole,
+          productTitle,
+          amountDollars: order.total_cents / 100,
+          reason,
+          canceledBy,
+          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+        });
+      }
+    } catch (e) {
+      console.error("emailOrderCanceled failed:", e);
+    }
 
     // Re-open the listing if there was one (give seller back the inventory).
     if (order.listing_id) {

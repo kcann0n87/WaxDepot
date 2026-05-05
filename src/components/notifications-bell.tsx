@@ -10,8 +10,10 @@ import {
   MessageCircle,
   Package,
   PackageCheck,
+  ThumbsDown,
   TrendingDown,
   TrendingUp,
+  XCircle,
   Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,10 +28,12 @@ import {
 const iconFor = (t: NotificationType) => {
   const map: Record<NotificationType, React.ReactNode> = {
     "bid-placed": <TrendingUp size={14} className="text-amber-400" />,
+    "bid-declined": <ThumbsDown size={14} className="text-rose-400" />,
     outbid: <TrendingDown size={14} className="text-rose-400" />,
     "bid-accepted": <Zap size={14} className="text-amber-400" />,
     "order-shipped": <Package size={14} className="text-sky-400" />,
     "order-delivered": <PackageCheck size={14} className="text-emerald-400" />,
+    "order-canceled": <XCircle size={14} className="text-rose-400" />,
     "payout-sent": <ArrowDownToLine size={14} className="text-emerald-400" />,
     "price-drop": <Heart size={14} className="text-rose-400" />,
     "new-listing": <Zap size={14} className="text-amber-400" />,

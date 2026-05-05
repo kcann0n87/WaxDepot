@@ -262,6 +262,66 @@ export async function emailFundsReleased(params: {
   });
 }
 
+export async function emailBidDeclined(params: {
+  to: string;
+  productTitle: string;
+  amountDollars: number;
+  productHref: string;
+}): Promise<void> {
+  const { to, productTitle, amountDollars, productHref } = params;
+  await sendEmail({
+    to,
+    subject: `Bid declined — ${productTitle}`,
+    html: wrapHtml({
+      preheader: `Your $${amountDollars.toFixed(0)} bid was declined. You can re-bid higher.`,
+      headline: "Your bid was declined",
+      body: `
+        <p>The seller declined your <strong style="color:#fbbf24;">$${amountDollars.toFixed(2)}</strong> bid on <strong style="color:#fff;">${productTitle}</strong>.</p>
+        <p>You can re-bid at a higher price, or browse the order book to see where the asks sit.</p>
+      `,
+      ctaLabel: "Re-bid →",
+      ctaHref: productHref,
+    }),
+  });
+}
+
+export async function emailOrderCanceled(params: {
+  to: string;
+  role: "buyer" | "seller";
+  productTitle: string;
+  amountDollars: number;
+  reason: string;
+  canceledBy: "buyer" | "seller";
+  orderHref: string;
+}): Promise<void> {
+  const { to, role, productTitle, amountDollars, reason, canceledBy, orderHref } =
+    params;
+  // Phrasing depends on which role is being notified vs. who initiated.
+  const headline =
+    canceledBy === role ? "Order canceled" : `Order canceled by the ${canceledBy}`;
+  const refundLine =
+    role === "buyer"
+      ? `<p>Your <strong style="color:#fff;">$${amountDollars.toFixed(2)}</strong> payment has been refunded — Stripe typically returns the funds to your card within 5–10 business days.</p>`
+      : `<p>The buyer's <strong style="color:#fff;">$${amountDollars.toFixed(2)}</strong> payment was refunded; the listing is back live so the next buyer can grab it.</p>`;
+  await sendEmail({
+    to,
+    subject: `Order canceled — ${productTitle}`,
+    html: wrapHtml({
+      preheader: `${productTitle} · canceled by ${canceledBy}`,
+      headline,
+      body: `
+        <p><strong style="color:#fff;">${productTitle}</strong> was canceled${
+          canceledBy === role ? "" : ` by the ${canceledBy}`
+        }.</p>
+        <p style="color:rgba(255,255,255,0.6);">Reason: <em>${reason}</em></p>
+        ${refundLine}
+      `,
+      ctaLabel: "View order",
+      ctaHref: orderHref,
+    }),
+  });
+}
+
 export async function emailDisputeOpened(params: {
   to: string;
   productTitle: string;

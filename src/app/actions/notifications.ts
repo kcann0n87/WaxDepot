@@ -6,10 +6,12 @@ import { serviceRoleClient } from "@/lib/supabase/admin";
 
 export type NotificationType =
   | "bid-placed"
+  | "bid-declined"
   | "outbid"
   | "bid-accepted"
   | "order-shipped"
   | "order-delivered"
+  | "order-canceled"
   | "payout-sent"
   | "price-drop"
   | "new-listing"
