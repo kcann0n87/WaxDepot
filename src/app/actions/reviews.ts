@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { serviceRoleClient } from "@/lib/supabase/admin";
 
 export type ReviewResult = { ok?: boolean; error?: string };
 export type Verdict = "positive" | "neutral" | "negative";
@@ -82,8 +83,10 @@ export async function leaveReview(formData: FormData): Promise<ReviewResult> {
       throw error;
     }
 
-    // Notify the seller
-    await supabase.from("notifications").insert({
+    // Notify the seller. Service role: buyer inserting a row owned by the
+    // seller would otherwise be blocked by the auth.uid()=user_id RLS policy.
+    const admin = serviceRoleClient();
+    await admin.from("notifications").insert({
       user_id: order.seller_id,
       type: "new-message",
       title: "New review on your sale",
@@ -128,7 +131,7 @@ export async function addSellerReply(formData: FormData): Promise<ReviewResult> 
 
     const { data: review } = await supabase
       .from("reviews")
-      .select("id, seller_id")
+      .select("id, seller_id, buyer_id, order_id")
       .eq("id", reviewId)
       .maybeSingle();
     if (!review) return { error: "Review not found." };
@@ -140,6 +143,18 @@ export async function addSellerReply(formData: FormData): Promise<ReviewResult> 
       .update({ seller_reply: text, seller_reply_at: new Date().toISOString() })
       .eq("id", reviewId);
     if (error) throw error;
+
+    // Notify the buyer that the seller replied. Service role for the
+    // cross-user write.
+    const admin = serviceRoleClient();
+    await admin.from("notifications").insert({
+      user_id: review.buyer_id,
+      type: "new-message",
+      title: "Seller replied to your review",
+      body:
+        text.length > 100 ? `${text.slice(0, 97)}…` : text,
+      href: review.order_id ? `/account/orders/${review.order_id}` : "/account",
+    });
 
     const { data: sellerProfile } = await supabase
       .from("profiles")
