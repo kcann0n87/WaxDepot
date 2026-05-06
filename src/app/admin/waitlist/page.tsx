@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { WaitlistTable } from "./waitlist-table";
+import { BulkInviteButton } from "./bulk-invite-button";
 
 export const dynamic = "force-dynamic";
 
@@ -84,9 +85,12 @@ export default async function AdminWaitlistPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <Inbox size={18} className="text-amber-400" />
-        <h1 className="font-display text-3xl font-black text-white">Waitlist</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Inbox size={18} className="text-amber-400" />
+          <h1 className="font-display text-3xl font-black text-white">Waitlist</h1>
+        </div>
+        {counts.pending > 0 && <BulkInviteButton pendingCount={counts.pending} />}
       </div>
       <p className="mb-6 max-w-2xl text-sm text-white/60">
         Anyone who entered their email on the coming-soon page lands here. Use

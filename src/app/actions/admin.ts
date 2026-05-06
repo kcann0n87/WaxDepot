@@ -505,3 +505,97 @@ export async function adminInviteUser(input: {
   revalidatePath("/admin/users");
   return { ok: true, data: { user_id: data.user?.id ?? null, email } };
 }
+
+/**
+ * Bulk-invite the next N pending waitlist entries (oldest first — first
+ * sign-up gets in first). Caps at 25 per run because Supabase rate-limits
+ * inviteUserByEmail. Returns counts so the admin can see what happened
+ * without scrolling through individual toasts.
+ *
+ * Skips emails that already have an auth user (duplicate-invite check
+ * baked into adminInviteUser handles this safely; we just count it as
+ * "skipped" instead of "failed").
+ */
+export async function adminInviteBatchPending(
+  maxCount = 25,
+): Promise<Result & { sent?: number; skipped?: number; failed?: number }> {
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+
+  const cap = Math.max(1, Math.min(50, Math.floor(maxCount)));
+  const sb = serviceRoleClient();
+
+  // Build the same invitedAt set the waitlist page uses, then take the
+  // oldest N pending emails. Service role to bypass RLS for the cross-
+  // user reads.
+  const [{ data: waitlist }, { data: inviteLogs }, usersList] = await Promise.all([
+    sb
+      .from("waitlist")
+      .select("email, created_at")
+      .order("created_at", { ascending: true }),
+    sb
+      .from("admin_actions")
+      .select("details")
+      .eq("action", "invite_user"),
+    sb.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+  ]);
+
+  const invitedEmails = new Set(
+    (inviteLogs ?? [])
+      .map((r) => (r.details as { email?: string } | null)?.email?.toLowerCase())
+      .filter((e): e is string => !!e),
+  );
+  const existingAuthEmails = new Set(
+    (usersList.data?.users ?? [])
+      .map((u) => u.email?.toLowerCase())
+      .filter((e): e is string => !!e),
+  );
+
+  const pending = (waitlist ?? [])
+    .map((w) => w.email)
+    .filter(
+      (email) =>
+        !invitedEmails.has(email.toLowerCase()) &&
+        !existingAuthEmails.has(email.toLowerCase()),
+    )
+    .slice(0, cap);
+
+  if (pending.length === 0) {
+    return { ok: true, sent: 0, skipped: 0, failed: 0 };
+  }
+
+  const redirectTo =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+
+  let sent = 0;
+  let failed = 0;
+  for (const rawEmail of pending) {
+    const email = rawEmail.trim().toLowerCase();
+    try {
+      const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${redirectTo}/account`,
+      });
+      if (error) {
+        failed++;
+        console.error("adminInviteBatchPending invite failed:", email, error);
+        continue;
+      }
+      await logAdminAction(
+        admin.id,
+        "invite_user",
+        "user",
+        data.user?.id ?? email,
+        { email, display_name: null, batch: true },
+      );
+      sent++;
+    } catch (e) {
+      failed++;
+      console.error("adminInviteBatchPending threw:", email, e);
+    }
+  }
+
+  revalidatePath("/admin/waitlist");
+  revalidatePath("/admin/invite");
+  revalidatePath("/admin");
+  return { ok: true, sent, skipped: 0, failed };
+}
