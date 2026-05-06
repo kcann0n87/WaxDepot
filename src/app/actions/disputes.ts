@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { emailDisputeOpened } from "@/lib/email";
+import { siteUrl } from "@/lib/site-url";
 
 export type SubmitDisputeResult = { ok?: boolean; error?: string; disputeId?: string };
 
@@ -112,7 +113,7 @@ export async function submitDispute(formData: FormData): Promise<SubmitDisputeRe
           productTitle,
           reason,
           disputeId,
-          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+          orderHref: `${siteUrl()}/account/orders/${orderId}`,
         });
       }
     } catch (e) {

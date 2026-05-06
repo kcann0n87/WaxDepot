@@ -111,10 +111,12 @@ export async function GET(request: Request) {
           ? `Lowest ask is now $${dollars}.`
           : `Lowest ask is now $${dollars} — down from $${(lastAnchor / 100).toFixed(2)}.`;
 
-      // In-app notification.
+      // In-app notification. Use the canonical 'price-drop' enum value;
+      // an earlier 'watchlist-price-drop' label would silently fail the
+      // notification_type CHECK constraint.
       const { error: notifErr } = await sb.from("notifications").insert({
         user_id: w.user_id,
-        type: "watchlist-price-drop",
+        type: "price-drop",
         title: titleLine,
         body: bodyLine,
         href: `/product/${sku.slug}`,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSbAdmin } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Daily cron: walk every saved_search and surface new SKUs / new listings
@@ -138,9 +139,13 @@ export async function GET(request: Request) {
         .filter(Boolean)
         .join("&")}`;
 
+      // Type is 'new-listing' — these matches are by definition new listings
+      // surfaced via a saved search. Older code referenced a 'saved-search-
+      // match' type that was never added to the notification_type enum, so
+      // every insert was silently failing the Postgres CHECK.
       const { error: notifErr } = await sb.from("notifications").insert({
         user_id: s.user_id,
-        type: "saved-search-match",
+        type: "new-listing",
         title: `${matches.length} new match${matches.length === 1 ? "" : "es"} for your saved search`,
         body: `${titleSamples}${more}.`,
         href: searchHref,
@@ -158,23 +163,23 @@ export async function GET(request: Request) {
           const itemsHtml = top
             .map(
               (m) =>
-                `<li style="margin-bottom:10px;"><a href="https://waxdepot.io/product/${m.sku.slug}" style="color:#fcd34d;text-decoration:none;font-weight:600;">${m.sku.year} ${m.sku.brand} ${m.sku.set_name}</a> <span style="color:rgba(255,255,255,0.6);">(${m.sku.product})</span> — <strong style="color:#fbbf24;">$${(m.price_cents / 100).toFixed(2)}</strong></li>`,
+                `<li style="margin-bottom:10px;"><a href="${siteUrl()}/product/${m.sku.slug}" style="color:#fcd34d;text-decoration:none;font-weight:600;">${m.sku.year} ${m.sku.brand} ${m.sku.set_name}</a> <span style="color:rgba(255,255,255,0.6);">(${m.sku.product})</span> — <strong style="color:#fbbf24;">$${(m.price_cents / 100).toFixed(2)}</strong></li>`,
             )
             .join("");
           const moreLine = more
-            ? `<p style="color:rgba(255,255,255,0.6);font-size:13px;">…and ${matches.length - 3} more. <a href="https://waxdepot.io${searchHref}" style="color:#fcd34d;">See all matches →</a></p>`
-            : `<p style="color:rgba(255,255,255,0.6);font-size:13px;"><a href="https://waxdepot.io${searchHref}" style="color:#fcd34d;">See all matches →</a></p>`;
-          const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0b;color:#e5e5e5;padding:32px 16px;"><div style="max-width:560px;margin:0 auto;"><div style="font-size:22px;font-weight:900;letter-spacing:-0.02em;margin-bottom:24px;"><span style="color:#ffffff;">Wax</span><span style="color:#f59e0b;">Depot</span></div><div style="background:#101012;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;"><h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#ffffff;">${subject}</h1><p style="color:rgba(255,255,255,0.7);font-size:14px;margin:0 0 20px;">From your saved search on WaxDepot:</p><ul style="list-style:none;padding:0;margin:0 0 16px;font-size:14px;">${itemsHtml}</ul>${moreLine}<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"><p style="color:rgba(255,255,255,0.5);font-size:11px;">Manage these alerts: <a href="https://waxdepot.io/account/alerts" style="color:rgba(255,255,255,0.7);">/account/alerts</a></p></div></div></div>`;
+            ? `<p style="color:rgba(255,255,255,0.6);font-size:13px;">…and ${matches.length - 3} more. <a href="${siteUrl()}${searchHref}" style="color:#fcd34d;">See all matches →</a></p>`
+            : `<p style="color:rgba(255,255,255,0.6);font-size:13px;"><a href="${siteUrl()}${searchHref}" style="color:#fcd34d;">See all matches →</a></p>`;
+          const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0b;color:#e5e5e5;padding:32px 16px;"><div style="max-width:560px;margin:0 auto;"><div style="font-size:22px;font-weight:900;letter-spacing:-0.02em;margin-bottom:24px;"><span style="color:#ffffff;">Wax</span><span style="color:#f59e0b;">Depot</span></div><div style="background:#101012;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;"><h1 style="margin:0 0 12px;font-size:22px;font-weight:900;color:#ffffff;">${subject}</h1><p style="color:rgba(255,255,255,0.7);font-size:14px;margin:0 0 20px;">From your saved search on WaxDepot:</p><ul style="list-style:none;padding:0;margin:0 0 16px;font-size:14px;">${itemsHtml}</ul>${moreLine}<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"><p style="color:rgba(255,255,255,0.5);font-size:11px;">Manage these alerts: <a href="${siteUrl()}/account/alerts" style="color:rgba(255,255,255,0.7);">/account/alerts</a></p></div></div></div>`;
           const text = `New on WaxDepot:\n\n${top
             .map(
               (m) =>
-                `  • ${m.sku.year} ${m.sku.brand} ${m.sku.set_name} (${m.sku.product}) — $${(m.price_cents / 100).toFixed(2)}\n    https://waxdepot.io/product/${m.sku.slug}`,
+                `  • ${m.sku.year} ${m.sku.brand} ${m.sku.set_name} (${m.sku.product}) — $${(m.price_cents / 100).toFixed(2)}\n    ${siteUrl()}/product/${m.sku.slug}`,
             )
             .join("\n\n")}${
             more
-              ? `\n\n  …and ${matches.length - 3} more.\n  See all: https://waxdepot.io${searchHref}`
-              : `\n\n  See all: https://waxdepot.io${searchHref}`
-          }\n\nManage your alerts: https://waxdepot.io/account/alerts`;
+              ? `\n\n  …and ${matches.length - 3} more.\n  See all: ${siteUrl()}${searchHref}`
+              : `\n\n  See all: ${siteUrl()}${searchHref}`
+          }\n\nManage your alerts: ${siteUrl()}/account/alerts`;
           await sendEmail({ to: userEmail, subject, html, text });
           summary.emailsSent++;
         } catch (e) {

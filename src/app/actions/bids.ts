@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { emailBidPlaced } from "@/lib/email";
+import { siteUrl } from "@/lib/site-url";
 
 export type CreateBidResult = {
   error?: string;
@@ -60,9 +61,8 @@ export async function createBid(formData: FormData): Promise<CreateBidResult> {
     const productTitle = skuMeta
       ? `${skuMeta.year} ${skuMeta.brand} ${skuMeta.product}`
       : "your bid";
-    const productHref = slug
-      ? `https://waxdepot.io/product/${slug}`
-      : "https://waxdepot.io/account";
+    const origin = siteUrl();
+    const productHref = slug ? `${origin}/product/${slug}` : `${origin}/account`;
 
     // Fan out a "bid-placed" notification to the buyer for activity feed.
     if (skuMeta) {

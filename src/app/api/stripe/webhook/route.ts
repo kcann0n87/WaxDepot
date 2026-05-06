@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { createClient as createSbAdmin } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 import { emailPaymentReceived } from "@/lib/email";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Webhooks have no user session, so we can't use the cookie-based server
@@ -267,7 +268,7 @@ async function handleEvent(event: Stripe.Event) {
               role: "seller",
               productTitle,
               amountDollars: order.total_cents / 100,
-              orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+              orderHref: `${siteUrl()}/account/orders/${orderId}`,
             });
           }
           if (buyerAuth?.user?.email) {
@@ -276,7 +277,7 @@ async function handleEvent(event: Stripe.Event) {
               role: "buyer",
               productTitle,
               amountDollars: order.total_cents / 100,
-              orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+              orderHref: `${siteUrl()}/account/orders/${orderId}`,
             });
           }
         } catch (e) {

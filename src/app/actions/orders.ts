@@ -12,6 +12,7 @@ import {
   emailOrderCanceled,
   emailOrderShipped,
 } from "@/lib/email";
+import { siteUrl } from "@/lib/site-url";
 import { createTracker } from "@/lib/easypost";
 
 export type ActionResult = { ok?: boolean; error?: string; orderId?: string };
@@ -173,7 +174,7 @@ export async function acceptBid(formData: FormData): Promise<ActionResult> {
           to: buyerEmail,
           productTitle,
           amountDollars: bid.price_cents / 100,
-          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+          orderHref: `${siteUrl()}/account/orders/${orderId}`,
         });
       }
     }
@@ -244,8 +245,8 @@ export async function declineBid(formData: FormData): Promise<ActionResult> {
           productTitle,
           amountDollars: bid.price_cents / 100,
           productHref: skuMeta.slug
-            ? `https://waxdepot.io/product/${skuMeta.slug}`
-            : "https://waxdepot.io/account",
+            ? `${siteUrl()}/product/${skuMeta.slug}`
+            : `${siteUrl()}/account`,
         });
       }
     }
@@ -324,7 +325,7 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
           productTitle,
           carrier,
           tracking,
-          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+          orderHref: `${siteUrl()}/account/orders/${orderId}`,
         });
       }
     }
@@ -519,7 +520,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
           to: sellerEmail,
           productTitle,
           amountDollars: order.total_cents / 100,
-          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+          orderHref: `${siteUrl()}/account/orders/${orderId}`,
         });
       }
     }
@@ -886,7 +887,7 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
           amountDollars: order.total_cents / 100,
           reason,
           canceledBy,
-          orderHref: `https://waxdepot.io/account/orders/${orderId}`,
+          orderHref: `${siteUrl()}/account/orders/${orderId}`,
         });
       }
     } catch (e) {
