@@ -31,19 +31,28 @@ export function ProductImage({
     card: { brand: "text-xs", set: "text-2xl", year: "text-xs" },
   }[size];
 
+  // Uniform dark surface when we have a real product photo — keeps the
+  // grid from looking like a chaotic rainbow when a row of studio shots
+  // (white backgrounds) sits over per-SKU gradients. Gradient stays as
+  // the visual identity for SKUs without imagery (text fallback below).
+  const surfaceStyle: React.CSSProperties | undefined = sku.imageUrl
+    ? undefined
+    : {
+        background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
+      };
+  const surfaceClass = sku.imageUrl ? "bg-[#0f0f12]" : "";
+
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden ${className}`}
-      style={{
-        background: `linear-gradient(135deg, ${sku.gradient[0]}, ${sku.gradient[1]})`,
-      }}
+      className={`relative flex items-center justify-center overflow-hidden ${surfaceClass} ${className}`}
+      style={surfaceStyle}
     >
       {sku.imageUrl ? (
         // next/image gives us AVIF/WebP serving + responsive sizing.
         // object-contain (not cover) so the whole product is visible —
         // box images come from a few sources at different aspect ratios,
         // and cover ends up cropping heads/box-tops on portrait or wide
-        // shots. Gradient bg fills letterbox space.
+        // shots. Dark bg fills letterbox space cleanly.
         <Image
           src={sku.imageUrl}
           alt={`${sku.brand} ${sku.set} ${sku.product}`}
