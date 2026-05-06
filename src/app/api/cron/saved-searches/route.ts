@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSbAdmin } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email";
+import { shouldSendEmail } from "@/lib/email-prefs";
 import { siteUrl } from "@/lib/site-url";
 
 /**
@@ -156,8 +157,13 @@ export async function GET(request: Request) {
         summary.notificationsCreated++;
       }
 
-      // Email digest if opted in.
-      if (s.alert_email && userEmail) {
+      // Email digest if opted in (per-saved-search alert_email AND
+      // global digest_emails preference).
+      if (
+        s.alert_email &&
+        userEmail &&
+        (await shouldSendEmail(s.user_id, "digest_emails"))
+      ) {
         try {
           const subject = `${matches.length} new match${matches.length === 1 ? "" : "es"} for your saved search`;
           const itemsHtml = top

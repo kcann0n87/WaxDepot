@@ -1,9 +1,19 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe";
+import type { EmailCategory } from "@/lib/email-prefs";
+
+const VALID_PREF_KEYS: readonly EmailCategory[] = [
+  "order_emails",
+  "bid_emails",
+  "message_emails",
+  "digest_emails",
+  "marketing_emails",
+];
 
 export type DeleteAccountResult = { ok?: boolean; error?: string };
 
@@ -134,4 +144,49 @@ export async function deleteAccount(
   // Outside the try/catch — Next's redirect throws an internal error that
   // we don't want to swallow.
   redirect("/?account=deleted");
+}
+
+/**
+ * Persist the current user's email-category opt-outs. The shape mirrors
+ * what shouldSendEmail() reads from profiles.notification_prefs.
+ *
+ * Anything not in VALID_PREF_KEYS is dropped silently to avoid stuffing
+ * the JSONB with junk if the client passes through stale schema.
+ */
+export async function updateNotificationPrefs(
+  partial: Partial<Record<EmailCategory, boolean>>,
+): Promise<{ ok?: boolean; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You must be signed in." };
+
+  const sanitized: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(partial)) {
+    if ((VALID_PREF_KEYS as readonly string[]).includes(k) && typeof v === "boolean") {
+      sanitized[k] = v;
+    }
+  }
+
+  // Read-modify-write so toggling one key doesn't blow away the rest.
+  // Service role because the JSONB merge is easier without RLS row-rules
+  // tripping the upsert; ownership is already validated above.
+  const admin = serviceRoleClient();
+  const { data: existing } = await admin
+    .from("profiles")
+    .select("notification_prefs")
+    .eq("id", user.id)
+    .maybeSingle();
+  const current = (existing?.notification_prefs ?? {}) as Record<string, unknown>;
+  const merged = { ...current, ...sanitized };
+
+  const { error } = await admin
+    .from("profiles")
+    .update({ notification_prefs: merged })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/account/settings");
+  return { ok: true };
 }

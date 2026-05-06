@@ -12,6 +12,7 @@ import {
   emailOrderCanceled,
   emailOrderShipped,
 } from "@/lib/email";
+import { shouldSendEmail } from "@/lib/email-prefs";
 import { siteUrl } from "@/lib/site-url";
 import { createTracker } from "@/lib/easypost";
 
@@ -169,7 +170,7 @@ export async function acceptBid(formData: FormData): Promise<ActionResult> {
         href: `/account/orders/${orderId}`,
       });
       const buyerEmail = await getUserEmail(bid.buyer_id);
-      if (buyerEmail) {
+      if (buyerEmail && (await shouldSendEmail(bid.buyer_id, "bid_emails"))) {
         await emailBidAccepted({
           to: buyerEmail,
           productTitle,
@@ -239,7 +240,7 @@ export async function declineBid(formData: FormData): Promise<ActionResult> {
         href: skuMeta.slug ? `/product/${skuMeta.slug}` : "/account",
       });
       const buyerEmail = await getUserEmail(bid.buyer_id);
-      if (buyerEmail) {
+      if (buyerEmail && (await shouldSendEmail(bid.buyer_id, "bid_emails"))) {
         await emailBidDeclined({
           to: buyerEmail,
           productTitle,
@@ -319,7 +320,7 @@ export async function markShipped(formData: FormData): Promise<ActionResult> {
         href: `/account/orders/${orderId}`,
       });
       const buyerEmail = await getUserEmail(order.buyer_id);
-      if (buyerEmail) {
+      if (buyerEmail && (await shouldSendEmail(order.buyer_id, "order_emails"))) {
         await emailOrderShipped({
           to: buyerEmail,
           productTitle,
@@ -515,7 +516,7 @@ export async function releaseOrderToSeller(orderId: string): Promise<ActionResul
         href: `/account/orders/${orderId}`,
       });
       const sellerEmail = await getUserEmail(order.seller_id);
-      if (sellerEmail) {
+      if (sellerEmail && (await shouldSendEmail(order.seller_id, "order_emails"))) {
         await emailFundsReleased({
           to: sellerEmail,
           productTitle,
@@ -879,7 +880,7 @@ export async function cancelOrder(formData: FormData): Promise<ActionResult> {
     // in the UI. Best-effort.
     try {
       const otherEmail = await getUserEmail(otherUserId);
-      if (otherEmail) {
+      if (otherEmail && (await shouldSendEmail(otherUserId, "order_emails"))) {
         await emailOrderCanceled({
           to: otherEmail,
           role: otherRole,

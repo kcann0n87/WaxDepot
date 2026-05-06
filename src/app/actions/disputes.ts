@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { emailDisputeOpened } from "@/lib/email";
+import { shouldSendEmail } from "@/lib/email-prefs";
 import { siteUrl } from "@/lib/site-url";
 
 export type SubmitDisputeResult = { ok?: boolean; error?: string; disputeId?: string };
@@ -103,7 +104,10 @@ export async function submitDispute(formData: FormData): Promise<SubmitDisputeRe
       const { data: sellerAuth } = await admin.auth.admin.getUserById(
         order.seller_id,
       );
-      if (sellerAuth?.user?.email) {
+      if (
+        sellerAuth?.user?.email &&
+        (await shouldSendEmail(order.seller_id, "order_emails"))
+      ) {
         const skuRel = Array.isArray(order.sku) ? order.sku[0] : order.sku;
         const productTitle = skuRel
           ? `${skuRel.year} ${skuRel.brand} ${skuRel.product}`

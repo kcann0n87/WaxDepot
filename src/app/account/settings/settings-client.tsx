@@ -17,7 +17,15 @@ import {
   User,
 } from "lucide-react";
 import { updateProfile } from "../../auth/actions";
-import { deleteAccount } from "../../actions/account";
+import { deleteAccount, updateNotificationPrefs } from "../../actions/account";
+
+type NotifPrefs = {
+  order_emails: boolean;
+  bid_emails: boolean;
+  message_emails: boolean;
+  digest_emails: boolean;
+  marketing_emails: boolean;
+};
 
 type CardOnFile = { id: string; brand: string; last4: string; exp: string; isDefault: boolean };
 type Address = {
@@ -43,17 +51,30 @@ export function SettingsClient({
   initialDisplayName,
   initialUsername,
   email,
+  initialPrefs,
 }: {
   initialDisplayName: string;
   initialUsername: string;
   email: string;
+  initialPrefs: NotifPrefs;
 }) {
   const [cards, setCards] = useState<CardOnFile[]>(initialCards);
   const [addresses, setAddresses] = useState<Address[]>(initialAddresses);
-  const [emailMarketing, setEmailMarketing] = useState(false);
-  const [emailOrders, setEmailOrders] = useState(true);
-  const [emailMessages, setEmailMessages] = useState(true);
-  const [pushAll, setPushAll] = useState(true);
+  const [prefs, setPrefs] = useState<NotifPrefs>(initialPrefs);
+
+  // Persist on every toggle, optimistically. Failures revert + surface a
+  // small error line. No "Save" button — toggle = save.
+  const persistPref = (key: keyof NotifPrefs, value: boolean) => {
+    const previous = prefs[key];
+    setPrefs((p) => ({ ...p, [key]: value }));
+    startTransition(async () => {
+      const res = await updateNotificationPrefs({ [key]: value });
+      if (res.error) {
+        setPrefs((p) => ({ ...p, [key]: previous }));
+        setProfileMsg({ kind: "err", text: `Couldn't save: ${res.error}` });
+      }
+    });
+  };
 
   const [profileMsg, setProfileMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -234,12 +255,38 @@ export function SettingsClient({
         </button>
       </Section>
 
-      <Section icon={<Bell size={16} />} title="Notifications" subtitle="When and how we reach out">
+      <Section icon={<Bell size={16} />} title="Email notifications" subtitle="What we send to your inbox. In-app bell stays on regardless.">
         <ul className="divide-y divide-white/5 rounded-lg border border-white/10">
-          <NotifRow label="Order updates" description="Shipped, delivered, refunded" on={emailOrders} onChange={setEmailOrders} />
-          <NotifRow label="Messages" description="New messages from sellers and support" on={emailMessages} onChange={setEmailMessages} />
-          <NotifRow label="Push notifications" description="Real-time alerts via the app" on={pushAll} onChange={setPushAll} />
-          <NotifRow label="Marketing emails" description="Newsletters, drops, promotions" on={emailMarketing} onChange={setEmailMarketing} />
+          <NotifRow
+            label="Order updates"
+            description="Payment received, shipped, funds released, canceled, dispute opened. Lifecycle-critical — opt out and you may miss the 2-day auto-release window."
+            on={prefs.order_emails}
+            onChange={(v) => persistPref("order_emails", v)}
+          />
+          <NotifRow
+            label="Bid alerts"
+            description="Bid placed confirmation, accepted, declined."
+            on={prefs.bid_emails}
+            onChange={(v) => persistPref("bid_emails", v)}
+          />
+          <NotifRow
+            label="Saved-search & watchlist digests"
+            description="Daily roundup of new matches and price drops on items you're watching."
+            on={prefs.digest_emails}
+            onChange={(v) => persistPref("digest_emails", v)}
+          />
+          <NotifRow
+            label="Direct messages"
+            description="New messages from buyers, sellers, and support. (In-app today; email coming soon.)"
+            on={prefs.message_emails}
+            onChange={(v) => persistPref("message_emails", v)}
+          />
+          <NotifRow
+            label="Marketing"
+            description="Newsletters, drop announcements, promotions. Off by default."
+            on={prefs.marketing_emails}
+            onChange={(v) => persistPref("marketing_emails", v)}
+          />
         </ul>
       </Section>
 

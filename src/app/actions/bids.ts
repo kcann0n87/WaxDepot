@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { serviceRoleClient } from "@/lib/supabase/admin";
 import { emailBidPlaced } from "@/lib/email";
+import { shouldSendEmail } from "@/lib/email-prefs";
 import { siteUrl } from "@/lib/site-url";
 
 export type CreateBidResult = {
@@ -105,7 +106,11 @@ export async function createBid(formData: FormData): Promise<CreateBidResult> {
           })),
         );
       }
-      if (buyerAuth?.user?.email && skuMeta) {
+      if (
+        buyerAuth?.user?.email &&
+        skuMeta &&
+        (await shouldSendEmail(user.id, "bid_emails"))
+      ) {
         await emailBidPlaced({
           to: buyerAuth.user.email,
           productTitle,

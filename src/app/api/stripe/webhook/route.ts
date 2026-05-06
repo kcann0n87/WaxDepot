@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { createClient as createSbAdmin } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 import { emailPaymentReceived } from "@/lib/email";
+import { shouldSendEmail } from "@/lib/email-prefs";
 import { siteUrl } from "@/lib/site-url";
 
 /**
@@ -262,7 +263,10 @@ async function handleEvent(event: Stripe.Event) {
             supabase.auth.admin.getUserById(order.seller_id),
             supabase.auth.admin.getUserById(order.buyer_id),
           ]);
-          if (sellerAuth?.user?.email) {
+          if (
+            sellerAuth?.user?.email &&
+            (await shouldSendEmail(order.seller_id, "order_emails"))
+          ) {
             await emailPaymentReceived({
               to: sellerAuth.user.email,
               role: "seller",
@@ -271,7 +275,10 @@ async function handleEvent(event: Stripe.Event) {
               orderHref: `${siteUrl()}/account/orders/${orderId}`,
             });
           }
-          if (buyerAuth?.user?.email) {
+          if (
+            buyerAuth?.user?.email &&
+            (await shouldSendEmail(order.buyer_id, "order_emails"))
+          ) {
             await emailPaymentReceived({
               to: buyerAuth.user.email,
               role: "buyer",
