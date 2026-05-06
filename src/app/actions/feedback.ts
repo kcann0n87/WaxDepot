@@ -121,3 +121,139 @@ export async function adminUpdateFeedbackStatus(
   revalidatePath("/admin/feedback");
   return { ok: true };
 }
+
+/**
+ * Admin-only: turn a "set request" feedback row into a real SKU in
+ * one click. Reads the payload (brand/set_name/sport/year/product),
+ * generates a slug, calls adminCreateSku, marks the feedback row
+ * shipped with the new SKU id, and notifies the requester (if they
+ * were signed in when they submitted).
+ *
+ * Defaults — admin can edit afterward in /admin/catalog:
+ *   - product field defaults to "Hobby Box" if not specified
+ *   - release_date defaults to today (admin should update)
+ *   - description, image_url, gradient: omitted (catalog has sane fallbacks)
+ *
+ * Returns the new SKU id + slug so the UI can link straight to its
+ * edit page if the admin wants to upload an image.
+ */
+export async function adminApproveSetRequest(
+  feedbackId: string,
+): Promise<FeedbackResult & { sku_id?: string; slug?: string }> {
+  const { requireAdmin, logAdminAction } = await import("@/lib/admin");
+  const { serviceRoleClient } = await import("@/lib/supabase/admin");
+  const { adminCreateSku } = await import("./admin");
+
+  const admin = await requireAdmin();
+  if (!admin) return { error: "Forbidden" };
+
+  const sb = serviceRoleClient();
+  const { data: row } = await sb
+    .from("feedback")
+    .select("id, type, payload, status, submitted_by, email")
+    .eq("id", feedbackId)
+    .maybeSingle();
+  if (!row) return { error: "Feedback request not found." };
+  if (row.type !== "set")
+    return { error: "Only set requests can be approved this way." };
+  if (row.status === "shipped")
+    return { error: "Already added to the catalog." };
+
+  const p = (row.payload ?? {}) as {
+    brand?: string;
+    set_name?: string;
+    sport?: string;
+    year?: string;
+    product?: string;
+    notes?: string;
+  };
+  const brand = (p.brand ?? "").trim();
+  const setName = (p.set_name ?? "").trim();
+  const sport = p.sport;
+  const yearNum = parseInt(p.year ?? "", 10);
+  const product = (p.product ?? "").trim() || "Hobby Box";
+
+  if (!brand) return { error: "Request is missing brand — edit it first." };
+  if (!setName)
+    return { error: "Request is missing set name — edit it first." };
+  if (!Number.isFinite(yearNum))
+    return { error: "Request is missing a valid year." };
+  if (
+    sport !== "NBA" &&
+    sport !== "MLB" &&
+    sport !== "NFL" &&
+    sport !== "NHL" &&
+    sport !== "Pokemon" &&
+    sport !== "Soccer"
+  ) {
+    return { error: "Request has an invalid sport — edit it first." };
+  }
+
+  const sportSegment =
+    sport === "NBA"
+      ? "basketball"
+      : sport === "NFL"
+        ? "football"
+        : sport === "NHL"
+          ? "hockey"
+          : sport === "Soccer"
+            ? "soccer"
+            : sport === "Pokemon"
+              ? "pokemon-tcg"
+              : "baseball";
+  const productSegment = product
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const slug = `${yearNum}-${brand} ${setName}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    + `-${sportSegment}-${productSegment}`;
+
+  const created = await adminCreateSku({
+    slug,
+    year: yearNum,
+    brand,
+    set_name: setName,
+    product,
+    sport,
+    // Default release_date to today; admin should refine it. Keeping
+    // it filled-in is better than null since release_date is non-null.
+    release_date: new Date().toISOString().slice(0, 10),
+    description: p.notes ? `Requested set. ${p.notes}` : undefined,
+    is_published: false, // start unpublished so admin can review before it's live
+  });
+  if (created.error) return { error: created.error };
+
+  const newSkuId = (created.data as { id?: string } | null)?.id ?? null;
+
+  // Mark the feedback shipped with the SKU id in admin_notes.
+  await sb
+    .from("feedback")
+    .update({
+      status: "shipped",
+      admin_notes: newSkuId ? `Created SKU ${slug} (${newSkuId})` : `Created SKU ${slug}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", feedbackId);
+
+  // Notify the original requester if they're a signed-in user.
+  if (row.submitted_by) {
+    await sb.from("notifications").insert({
+      user_id: row.submitted_by,
+      type: "new-listing",
+      title: "Your set request was added",
+      body: `${yearNum} ${brand} ${setName} ${sport} is now in the catalog. We'll publish it once admin uploads a product image.`,
+      href: `/product/${slug}`,
+    });
+  }
+
+  await logAdminAction(admin.id, "approve_set_request", "feedback", feedbackId, {
+    sku_slug: slug,
+    sku_id: newSkuId,
+  });
+  revalidatePath("/admin/feedback");
+  revalidatePath("/admin/catalog");
+  return { ok: true, sku_id: newSkuId ?? undefined, slug };
+}

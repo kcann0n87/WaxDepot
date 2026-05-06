@@ -10,10 +10,14 @@ import {
   Loader2,
   Mail,
   Package,
+  Plus,
   User,
   X,
 } from "lucide-react";
-import { adminUpdateFeedbackStatus } from "@/app/actions/feedback";
+import {
+  adminApproveSetRequest,
+  adminUpdateFeedbackStatus,
+} from "@/app/actions/feedback";
 
 type Status = "pending" | "reviewed" | "accepted" | "declined" | "shipped";
 
@@ -71,6 +75,18 @@ export function FeedbackRow({
         status,
         adminNotes.trim() || undefined,
       );
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const approveAndCreate = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await adminApproveSetRequest(item.id);
       if (res.error) {
         setError(res.error);
         return;
@@ -234,12 +250,24 @@ export function FeedbackRow({
               <Check size={11} className="mr-1 inline" />
               Accept
             </button>
+            {item.type === "set" && item.status !== "shipped" && (
+              <button
+                onClick={approveAndCreate}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Creates the SKU as unpublished, marks request shipped, and notifies the requester. Edit the SKU after to set release date + image."
+              >
+                <Plus size={11} />
+                Approve + create SKU
+              </button>
+            )}
             {item.type === "set" && newSkuHref && (
               <Link
                 href={newSkuHref}
-                className="rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-200 transition hover:bg-amber-500/20"
+                className="rounded-md border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/70 transition hover:bg-white/10"
+                title="Open the catalog form pre-filled (instead of one-click)"
               >
-                Add to catalog →
+                Edit first →
               </Link>
             )}
             <button
