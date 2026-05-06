@@ -22,7 +22,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "place-an-order",
         title: "How do I place an order?",
-        body: "Find a product, click Buy Now or add it to your cart. Enter your shipping address and a card. Your payment is held in escrow until the box arrives sealed — funds aren't released to the seller until you confirm delivery (or 3 days after delivery, whichever comes first).",
+        body: "Find a product, click Buy Now or add it to your cart. Enter your shipping address and a card. Your payment is held in escrow until the box arrives sealed — funds aren't released to the seller until you confirm delivery, or 2 days after the carrier marks it delivered (unless you've opened a dispute, which holds funds until WaxDepot Support resolves it).",
       },
       {
         slug: "place-a-bid",
@@ -32,7 +32,7 @@ export const helpCategories: HelpCategory[] = [
       {
         slug: "buyer-protection",
         title: "What is Buyer Protection?",
-        body: "Every order is covered by WaxDepot Buyer Protection. Your payment stays in escrow until you confirm the box arrived sealed. If something's wrong (resealed, wrong item, damaged), open a dispute within 3 days of delivery for a full refund.",
+        body: "Every order is covered by WaxDepot Buyer Protection. Your payment stays in escrow until you confirm the box arrived sealed. If something's wrong (resealed, wrong item, damaged), open a dispute within 2 days of delivery — that's the auto-release window, after which funds move to the seller. Disputes opened in time hold funds until WaxDepot Support resolves it.",
       },
       {
         slug: "shipping-times",

@@ -27,7 +27,7 @@ const SECTIONS: Section[] = [
         q: "What if my box arrives resealed or tampered with?",
         a: (
           <>
-            Open a dispute within 3 days of delivery. We&apos;ll review evidence
+            Open a dispute within 2 days of delivery. We&apos;ll review evidence
             (photos of the wrap, packaging, and the box itself; an unboxing
             video helps) and refund you in full from escrow if the claim
             checks out. Read{" "}

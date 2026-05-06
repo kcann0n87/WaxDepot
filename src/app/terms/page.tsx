@@ -202,11 +202,14 @@ export default function TermsPage() {
           </p>
           <p>
             <strong>Dispute window:</strong> A buyer may open a dispute within{" "}
-            <strong>3 days of delivery</strong> if the box arrives resealed,
-            damaged, wrong product, counterfeit, or if the contents have been
-            tampered with. WaxDepot will review evidence (photos, packaging
-            condition, video of unboxing if provided) and may, at its sole
-            discretion, refund the buyer in full from escrow.
+            <strong>2 days of delivery</strong> — the same window as the
+            auto-release timer above — if the box arrives resealed, damaged,
+            wrong product, counterfeit, or if the contents have been tampered
+            with. Disputes opened within this window hold funds in escrow
+            until resolved, even if the 2 days lapse during review. WaxDepot
+            will review evidence (photos, packaging condition, video of
+            unboxing if provided) and may, at its sole discretion, refund the
+            buyer in full from escrow.
           </p>
           <p>
             <strong>Sellers waive the right to chargeback on disputes resolved
