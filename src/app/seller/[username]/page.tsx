@@ -101,7 +101,12 @@ export default async function SellerStorefrontPage({
     .maybeSingle();
   if (!profile) notFound();
 
-  const [{ data: listings }, salesCountRes, { data: reviewRows }] = await Promise.all([
+  const [
+    { data: listings },
+    salesCountRes,
+    { data: reviewRows },
+    reviewCountRes,
+  ] = await Promise.all([
     supabase
       .from("listings")
       .select(
@@ -123,9 +128,16 @@ export default async function SellerStorefrontPage({
       .eq("seller_id", profile.id)
       .order("created_at", { ascending: false })
       .limit(20),
+    // Total review count — used to render "Showing 20 of N most recent"
+    // when reviews exceed the page limit. Cheap (head + count exact).
+    supabase
+      .from("reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("seller_id", profile.id),
   ]);
 
   const totalSales = salesCountRes.count ?? 0;
+  const totalReviews = reviewCountRes.count ?? 0;
 
   type RawReview = {
     id: string;
@@ -283,7 +295,7 @@ export default async function SellerStorefrontPage({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {sellerListings.slice(0, 12).map(({ sku, priceCents, quantity }) => (
+            {sellerListings.map(({ sku, priceCents, quantity }) => (
               <Link
                 key={sku.id}
                 href={`/product/${sku.slug}`}
@@ -318,9 +330,11 @@ export default async function SellerStorefrontPage({
         <div className="mb-3">
           <h2 className="font-display text-lg font-black text-white">Recent feedback</h2>
           <p className="text-sm text-white/50">
-            {reviewCount === 0
+            {totalReviews === 0
               ? "Reviews show up after buyers confirm orders."
-              : `${reviewCount} buyer ${reviewCount === 1 ? "review" : "reviews"}`}
+              : totalReviews > reviewCount
+                ? `Showing the ${reviewCount} most recent of ${totalReviews} buyer reviews`
+                : `${totalReviews} buyer ${totalReviews === 1 ? "review" : "reviews"}`}
           </p>
         </div>
 
