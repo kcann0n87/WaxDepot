@@ -36,18 +36,25 @@ export default async function PayoutsPage({
     await refreshSellerStripeStatus().catch(() => {});
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select(
-      "id, display_name, stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled, stripe_details_submitted",
-    )
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, { count: listingCount }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(
+        "id, display_name, stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled, stripe_details_submitted",
+      )
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("listings")
+      .select("*", { count: "exact", head: true })
+      .eq("seller_id", user.id),
+  ]);
 
   const hasAccount = !!profile?.stripe_account_id;
   const isReady =
     !!profile?.stripe_charges_enabled && !!profile?.stripe_payouts_enabled;
   const inProgress = hasAccount && !isReady;
+  const isFirstTimeSeller = isReady && (listingCount ?? 0) === 0;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -154,17 +161,38 @@ export default async function PayoutsPage({
             </Glyph>
             <div className="flex-1">
               <h2 className="font-display text-lg font-black text-white">
-                Stripe is connected
+                {isFirstTimeSeller
+                  ? "You're set up — let's get a box listed"
+                  : "Stripe is connected"}
               </h2>
               <p className="mt-1 text-sm text-emerald-200/80">
-                You&apos;re fully set up. Sales proceeds will hit your linked
-                account on the schedule below.
+                {isFirstTimeSeller
+                  ? "Stripe verified. Head to /sell to put your first box on the order book — buyers can hit your ask or send you a bid you can accept."
+                  : "You're fully set up. Sales proceeds will hit your linked account on the schedule below."}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-emerald-200/80">
                 <Capability label="Accept charges" ok />
                 <Capability label="Receive payouts" ok />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
+                {isFirstTimeSeller && (
+                  <Link
+                    href="/sell"
+                    className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-sm font-bold text-slate-900 shadow-md shadow-amber-500/20 transition hover:from-amber-300 hover:to-amber-400"
+                  >
+                    List your first box
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
+                {!isFirstTimeSeller && (
+                  <Link
+                    href="/sell"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-amber-400 px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-amber-300"
+                  >
+                    List a box
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
                 <form action={openStripeDashboardAndRedirect}>
                   <button className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-300">
                     Open Stripe dashboard
