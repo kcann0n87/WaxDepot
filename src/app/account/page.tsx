@@ -240,7 +240,12 @@ export default async function AccountPage() {
         </div>
       )}
 
-      <Section eyebrow="Activity" title="Recent orders" subtitle="Includes escrow status">
+      <Section
+        eyebrow="Activity"
+        title="Recent orders"
+        subtitle="Includes escrow status"
+        seeAllHref={orders.length > 0 ? "/account/orders" : undefined}
+      >
         {orders.length === 0 ? (
           <EmptyRow message="No orders yet — your first purchase will land here." />
         ) : (
@@ -436,21 +441,33 @@ function Section({
   eyebrow,
   title,
   subtitle,
+  seeAllHref,
   children,
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
+  seeAllHref?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="mb-10">
-      <div className="mb-4">
-        <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
-          {eyebrow}
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-400/80 uppercase">
+            {eyebrow}
+          </div>
+          <h2 className="font-display mt-1 text-2xl font-black tracking-tight text-white">{title}</h2>
+          <p className="text-xs text-white/50">{subtitle}</p>
         </div>
-        <h2 className="font-display mt-1 text-2xl font-black tracking-tight text-white">{title}</h2>
-        <p className="text-xs text-white/50">{subtitle}</p>
+        {seeAllHref && (
+          <Link
+            href={seeAllHref}
+            className="shrink-0 text-xs font-semibold text-amber-300 hover:underline"
+          >
+            See all →
+          </Link>
+        )}
       </div>
       {children}
     </section>
