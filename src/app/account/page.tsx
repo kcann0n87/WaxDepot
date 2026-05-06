@@ -291,7 +291,12 @@ export default async function AccountPage() {
         )}
       </Section>
 
-      <Section eyebrow="Open" title="My bids" subtitle="Offers waiting for a seller">
+      <Section
+        eyebrow="Open"
+        title="My bids"
+        subtitle="Offers waiting for a seller"
+        seeAllHref={myBids.length > 0 ? "/account/bids" : undefined}
+      >
         {myBids.length === 0 ? (
           <EmptyRow message="No active bids. Place a bid on any product page." />
         ) : (
@@ -345,7 +350,12 @@ export default async function AccountPage() {
         )}
       </Section>
 
-      <Section eyebrow="Selling" title="My listings" subtitle="Boxes you've put on the market">
+      <Section
+        eyebrow="Selling"
+        title="My listings"
+        subtitle="Boxes you've put on the market"
+        seeAllHref={myListings.length > 0 ? "/account/listings" : undefined}
+      >
         {myListings.length === 0 ? (
           <EmptyRow message="No listings yet. Head to /sell to list your first box." />
         ) : (
