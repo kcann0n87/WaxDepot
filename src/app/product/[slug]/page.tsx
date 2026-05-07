@@ -166,13 +166,13 @@ export default async function ProductPage({
   const change = last && previous ? last - previous : 0;
   const changePct = previous ? (change / previous) * 100 : 0;
 
-  // Group title drops the per-variant product suffix when a selector is
-  // shown. Single-variant products keep the full title (with "Hobby Box"
-  // or whatever) for clarity.
+  // H1 always uses the brand-specific group title (no "Hobby Box" /
+  // "Hobby Case" suffix in the headline). The active variant is shown
+  // in the subtitle just below — this stays consistent across single
+  // and multi-variant products and means deep links to a specific
+  // variant don't burden the headline.
   const showVariantSelector = variants.length > 1;
-  const titleText = showVariantSelector
-    ? groupTitle(sku.year, sku.brand, sku.set, sku.sport)
-    : formatSkuTitle(sku);
+  const titleText = groupTitle(sku.year, sku.brand, sku.set, sku.sport);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6">
@@ -205,12 +205,14 @@ export default async function ProductPage({
                   </h1>
                   <WatchButton skuId={sku.id} variant="compact" />
                 </div>
-                {showVariantSelector && (
-                  <p className="mt-2 text-xs text-white/50">
-                    Currently viewing{" "}
-                    <strong className="text-white/80">{variantLabel(sku.variantType)}</strong>
-                  </p>
-                )}
+                {/* Variant subtitle — always shown so the H1 stays
+                    brand-only. Single-variant products show "Hobby Box"
+                    here as a static label; multi-variant products
+                    surface "Hobby Box" plus the variant selector below. */}
+                <p className="mt-2 text-xs text-white/50">
+                  Currently viewing{" "}
+                  <strong className="text-white/80">{variantLabel(sku.variantType)}</strong>
+                </p>
                 <p className="mt-3 text-sm leading-relaxed text-white/60">{sku.description}</p>
 
                 <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
